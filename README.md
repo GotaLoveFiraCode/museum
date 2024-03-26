@@ -13,11 +13,11 @@ A Curated Music Queue
 - [ ] Demonize.
 - [ ] Different file types without having to change the code…
 - [ ] Figure out how to list `fd-find` as a dependency somehow.
-- [ ] Get a better acronym.
+- [x] Get a better acronym.
 - [ ] Modules. Use them. Not just one giant file. Please.
 - [ ] Store more information with each song.
 - [ ] TUI?
-- [ ] Use anyhow for proper error management. `urgent`
+- [x] Use anyhow for proper error management. `urgent`
 - [ ] Use clap crate for proper argument management.
 - [x] Use SQLite DBs instead of JSON.
 
