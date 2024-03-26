@@ -2,7 +2,7 @@ use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use color_eyre::eyre::{bail, Result, WrapErr};
+use color_eyre::eyre::{ensure, Result, WrapErr};
 use rusqlite::Connection;
 
 // Add timestamp to touches/skips?
@@ -120,27 +120,28 @@ impl Song {
 fn main() -> Result<()> {
     color_eyre::install().wrap_err("Failed to install error handling with `color-eyre`!")?;
 
-    println!("WARNING: currently, museum has no memory. This will be implemented soon!");
-
     let args: Vec<String> = std::env::args().collect();
 
-    if args.len() < 2 {
-        bail!("Missing argument: `music_dir`!");
-    }
-
-    if &args[1] == "--help" || &args[1] == "-h" {
-        bail!("Help has not been implemented yet. Please view the README.md!");
-    }
+    ensure!(args.len() >= 2, "Missing argument: `music directory`!");
+    ensure!(
+        !(&args[1] == "--help" || &args[1] == "-h"),
+        "Help has not been implemented yet. Please view the README.md!"
+    );
 
     // TODO: support multiple music dirs.
-    let music_dir = gatekeeper(&PathBuf::from(&args[1])).wrap_err_with(|| format!("Failed condition for: argument music directory `{}`!", args[1]))?;
+    let music_dir = gatekeeper(&PathBuf::from(&args[1])).wrap_err_with(|| {
+        format!(
+            "Failed condition for: argument music directory `{}`!",
+            args[1]
+        )
+    })?;
 
     if music_dir.is_absolute() && music_dir.is_dir() && music_dir.exists() {
         println!(":: Searching for music…");
         // A little redundant, but more future proof.
-        let files = map_path_to_song(
-            &find_music(&music_dir).wrap_err_with(|| format!("Failed to find music files with `fd` from {music_dir:?}!"))?,
-        );
+        let files = map_path_to_song(&find_music(&music_dir).wrap_err_with(|| {
+            format!("Failed to find music files with `fd` from {music_dir:?}!")
+        })?);
         // TODO: support multiple music file formats.
         println!("==> {} flac files found!", files.len());
 
@@ -148,14 +149,16 @@ fn main() -> Result<()> {
         // TODO: persistent SQLite DB.
         let conn = init_db().wrap_err("Failed to initialize in-memory SQLite database.")?;
         // TODO: `update_db()`.
-        insert_db(&files, &conn).wrap_err_with(|| format!("Failed to INSERT songs INTO database `{conn:?}`."))?;
+        insert_db(&files, &conn)
+            .wrap_err_with(|| format!("Failed to INSERT songs INTO database `{conn:?}`."))?;
         println!("==> Music catalogue complete!");
 
         println!(":: Displaying catalogued songs in database…");
         // TODO: `retrieve_song_obj()`.
-        let songs = retrieve_songs_vec(&conn).wrap_err_with(|| format!("Failed to retrieve songs from `{conn:?}`."))?;
+        let songs = retrieve_songs_vec(&conn)
+            .wrap_err_with(|| format!("Failed to retrieve songs from `{conn:?}`."))?;
         for song in songs {
-            println!("==> Found {}", song.path);
+            println!("==> Found \"{}\"", song.path);
         }
 
         println!(":: THAT’S ALL, FOLKS!");
@@ -185,31 +188,54 @@ fn gatekeeper(music_dir: &Path) -> Result<PathBuf> {
             ":: Trying to convert `{}` into an absolute path…",
             music_dir.display()
         );
-        let absolute_path = std::fs::canonicalize(music_dir)
-            .wrap_err_with(|| format!("Failed to canonicalize relative music directory path: {music_dir:?}! Try using an absolute path."))?;
+        let absolute_path = std::fs::canonicalize(music_dir).wrap_err_with(|| {
+            // Should I feel guilty?
+            format!(
+                "Failed to canonicalize relative music directory path:
+                {music_dir:?}! Try using an absolute path."
+            )
+        })?;
         println!("==> Converted into `{}`!", absolute_path.display());
 
-        if music_dir.read_dir().wrap_err_with(|| format!("Failed to read inputed music directory: {music_dir:?}."))?.next().is_none() {
-            bail!(
+        // if music_dir.read_dir().wrap_err_with(|| format!("Failed to read inputed music directory: {music_dir:?}."))?.next().is_none() {
+        //     bail!(
+        //         "Music directory `{}` is empty — no music files to catalog.",
+        //         music_dir.display()
+        //     );
+        // }
+
+        ensure!(
+            music_dir
+                .read_dir()
+                .wrap_err_with(|| format!(
+                    "Failed to read inputed music directory: {music_dir:?}."
+                ))?
+                .next()
+                .is_some(),
+            format!(
                 "Music directory `{}` is empty — no music files to catalog.",
                 music_dir.display()
-            );
-        }
+            )
+        );
 
         return Ok(absolute_path);
-    } else if music_dir.is_file() {
-        bail!(
-            "Music directory `{}` is not a valid music *directory*.",
-            music_dir.display()
-        );
     }
 
-    if music_dir.read_dir()?.next().is_none() {
-        bail!(
+    ensure!(music_dir.is_dir(), format!("Music directory `{}` is not a directory!", music_dir.display()));
+
+    ensure!(
+        music_dir
+            .read_dir()
+            .wrap_err_with(|| format!(
+            "Failed to read inputed music directory: {music_dir:?}."
+        ))?
+            .next()
+            .is_some(),
+        format!(
             "Music directory `{}` is empty — no music files to catalog.",
             music_dir.display()
-        );
-    }
+        )
+    );
 
     Ok(music_dir.to_owned())
 }
@@ -231,7 +257,9 @@ fn find_music(music_dir: &Path) -> Result<Vec<PathBuf>> {
         .spawn()
         .wrap_err("Failed to spawn `fd`! Try installing the `fd-find` dependency.")?;
 
-    let output = child.wait_with_output().wrap_err("Failed to collect `fd`s output!")?;
+    let output = child
+        .wait_with_output()
+        .wrap_err("Failed to collect `fd`s output!")?;
 
     let files: Vec<PathBuf> = output
         .stdout
@@ -240,12 +268,7 @@ fn find_music(music_dir: &Path) -> Result<Vec<PathBuf>> {
         .map(|l| PathBuf::from(l.unwrap()))
         .collect();
 
-    if files.is_empty() {
-        bail!(
-            "No music (.flac) files found in `{:?}`.",
-            music_dir.display()
-        );
-    }
+    ensure!(!files.is_empty(), format!("No music (.flac) files found in `{music_dir:?}`."));
 
     Ok(files)
 }
@@ -301,9 +324,9 @@ fn insert_db(songs: &[Song], conn: &Connection) -> Result<()> {
 }
 
 fn retrieve_songs_vec(conn: &Connection) -> Result<Vec<Song>> {
-    let mut stmt = conn
-        .prepare("SELECT * FROM song")
-        .wrap_err_with(|| format!("Invalid SQL statement when SELECTing all FROM song in {conn:?}."))?;
+    let mut stmt = conn.prepare("SELECT * FROM song").wrap_err_with(|| {
+        format!("Invalid SQL statement when SELECTing all FROM song in {conn:?}.")
+    })?;
 
     let song_iter = stmt
         .query_map([], |row| {
