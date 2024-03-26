@@ -1,23 +1,31 @@
 # MUSEUM — Muse: Unleashing Music
 
-A Curated Music Queue
+You happen to have legally acquired a 9004-FLAC-files music library? You don’t
+know what to do with it? The library is just to big to play random stuff, and
+making your own playlists would take forever?
+
+Well, you’re in luck! I happen to be working on a simple rust program that
+catalogs your music in an SQLite database, and gives you intelligent music
+queues!
+
+Please help me.
 
 ## Roadmap
 
 - [ ] Actually play music…?
 - [x] Add install instructions.
 - [ ] Better experience early on.
-- [ ] Categorize stuff by genre/mood (separate SQLite DBs using symlinks?)
+- [ ] Categorize stuff by genre/mood (separate music dirs using symlinks? Or SQLite DBs?)
 - [ ] Colors. Make stuff pretty.
 - [ ] Decay system, so old data becomes irrelevant.
 - [ ] Demonize.
 - [ ] Different file types without having to change the code…
-- [ ] Figure out how to list `fd-find` as a dependency somehow.
+- [ ] Figure out how to list `fd-find` as a dependency somehow. (Is this bullet point enough?)
 - [x] Get a better acronym.
 - [ ] Modules. Use them. Not just one giant file. Please.
 - [ ] Store more information with each song.
 - [ ] TUI?
-- [x] Use anyhow for proper error management. `urgent`
+- [x] Use `anyhow` for proper error management.
 - [ ] Use clap crate for proper argument management.
 - [x] Use SQLite DBs instead of JSON.
 
@@ -29,8 +37,17 @@ Eventually, this will be a proper program that will play music *intelligently* (
 
 ## Installing
 
-`$ git clone …`
+`$ git clone …` \
 `$ cargo install --path=museum`
+
+### Dependencies: 
+
+- `fd-find` \
+	`$ cargo install fd-find`
+- Patience \
+	`$ echo "be patient"`
+- Rust/cargo/etc. \
+	`$ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 
 ### I don’t use FLAC? How do I pretend to use this?
 
@@ -44,13 +61,17 @@ Command::new("fd")
 
 Insert your preferred music file type (e.g. mp3) where it says *yourmusicfiletype* (keep the quotes). You can also add several different files types like this:
 ```rust
-Command::new("fd)
+Command::new("fd")
 	.arg("-e")
 	.arg("flac")
 	.arg("-e")
 	.arg("mp3")
 	// …
 ```
+
+---
+
+Ignore the following content — most of it is outdated or irrelevant.
 
 # PLANNING
 
