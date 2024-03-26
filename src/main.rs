@@ -2,7 +2,7 @@ use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use anyhow::{bail, Context, Result};
+use color_eyre::eyre::{bail, Result, WrapErr};
 use rusqlite::Connection;
 
 // Add timestamp to touches/skips?
@@ -118,42 +118,44 @@ impl Song {
 }
 
 fn main() -> Result<()> {
-    println!("WARNING: currently, museum has no memory! This will be implemented soon!");
+    color_eyre::install().wrap_err("Failed to install error handling with `color-eyre`!")?;
+
+    println!("WARNING: currently, museum has no memory. This will be implemented soon!");
 
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() < 2 {
-        bail!("Missing argument: `music_dir`");
+        bail!("Missing argument: `music_dir`!");
     }
 
     if &args[1] == "--help" || &args[1] == "-h" {
-        bail!("Help has not been implemented yet. Please view the README.md");
+        bail!("Help has not been implemented yet. Please view the README.md!");
     }
 
     // TODO: support multiple music dirs.
-    let music_dir = gatekeeper(&PathBuf::from(&args[1])).context("FAILED music_dir CONDITION.")?;
+    let music_dir = gatekeeper(&PathBuf::from(&args[1])).wrap_err_with(|| format!("Failed condition for: argument music directory `{}`!", args[1]))?;
 
     if music_dir.is_absolute() && music_dir.is_dir() && music_dir.exists() {
         println!(":: Searching for music…");
         // A little redundant, but more future proof.
         let files = map_path_to_song(
-            &find_music(&music_dir).context("Error when finding files with `fd`.")?,
+            &find_music(&music_dir).wrap_err_with(|| format!("Failed to find music files with `fd` from {music_dir:?}!"))?,
         );
         // TODO: support multiple music file formats.
         println!("==> {} flac files found!", files.len());
 
         println!(":: Starting to catalogue music in SQLite…");
         // TODO: persistent SQLite DB.
-        let conn = init_db().context("Error when initializing in-memory SQLite database.")?;
+        let conn = init_db().wrap_err("Failed to initialize in-memory SQLite database.")?;
         // TODO: `update_db()`.
-        insert_db(&files, &conn).context("Error when INSERTing songs INTO database.")?;
+        insert_db(&files, &conn).wrap_err_with(|| format!("Failed to INSERT songs INTO database `{conn:?}`."))?;
         println!("==> Music catalogue complete!");
 
         println!(":: Displaying catalogued songs in database…");
         // TODO: `retrieve_song_obj()`.
-        let songs = retrieve_songs_vec(&conn).context("Error when retrieving songs.")?;
+        let songs = retrieve_songs_vec(&conn).wrap_err_with(|| format!("Failed to retrieve songs from `{conn:?}`."))?;
         for song in songs {
-            println!("==> Found {song:?}");
+            println!("==> Found {}", song.path);
         }
 
         println!(":: THAT’S ALL, FOLKS!");
@@ -184,10 +186,10 @@ fn gatekeeper(music_dir: &Path) -> Result<PathBuf> {
             music_dir.display()
         );
         let absolute_path = std::fs::canonicalize(music_dir)
-            .context("Canonicalization of relative `music_dir` path failed.")?;
+            .wrap_err_with(|| format!("Failed to canonicalize relative music directory path: {music_dir:?}! Try using an absolute path."))?;
         println!("==> Converted into `{}`!", absolute_path.display());
 
-        if music_dir.read_dir()?.next().is_none() {
+        if music_dir.read_dir().wrap_err_with(|| format!("Failed to read inputed music directory: {music_dir:?}."))?.next().is_none() {
             bail!(
                 "Music directory `{}` is empty — no music files to catalog.",
                 music_dir.display()
@@ -195,9 +197,9 @@ fn gatekeeper(music_dir: &Path) -> Result<PathBuf> {
         }
 
         return Ok(absolute_path);
-    } else if music_dir.is_file() || music_dir.is_symlink() {
+    } else if music_dir.is_file() {
         bail!(
-            "Music directory `{}` is not a valid, *absolute* music *directory*.",
+            "Music directory `{}` is not a valid music *directory*.",
             music_dir.display()
         );
     }
@@ -227,9 +229,9 @@ fn find_music(music_dir: &Path) -> Result<Vec<PathBuf>> {
         .arg(music_dir.to_str().unwrap())
         .stdout(Stdio::piped())
         .spawn()
-        .context("Failed to spawn `fd`. Try installing the `fd-find` dependency.")?;
+        .wrap_err("Failed to spawn `fd`! Try installing the `fd-find` dependency.")?;
 
-    let output = child.wait_with_output()?;
+    let output = child.wait_with_output().wrap_err("Failed to collect `fd`s output!")?;
 
     let files: Vec<PathBuf> = output
         .stdout
@@ -262,7 +264,7 @@ fn map_path_to_song(paths: &[PathBuf]) -> Vec<Song> {
 // Starts (for now) in-memory SQLite database,
 // and adds `song` table to it with error handling.
 fn init_db() -> Result<Connection> {
-    let conn = Connection::open_in_memory().context("Rusqlite in-memory connection refused.")?;
+    let conn = Connection::open_in_memory().wrap_err("Rusqlite in-memory connection refused.")?;
 
     conn.execute(
         "CREATE TABLE song (
@@ -274,7 +276,7 @@ fn init_db() -> Result<Connection> {
         )",
         (),
     )
-    .context("Invalid SQL command when CREATEing song TABLE.")?;
+    .wrap_err_with(|| format!("Invalid SQL command when CREATEing song TABLE in `{conn:?}`."))?;
 
     Ok(conn)
 }
@@ -292,7 +294,7 @@ fn insert_db(songs: &[Song], conn: &Connection) -> Result<()> {
             "INSERT INTO song (path, touches, skips, score) VALUES (?1, ?2, ?3, ?4)",
             (&song.path, &song.touches, &song.skips, score),
         )
-        .context("Invalid SQL statement when INSERTing Song INTO database.")?;
+        .wrap_err_with(|| format!("Invalid SQL statement when INSERTing Song INTO database.\nSong: {song:?}.\nDB: {conn:?}."))?;
     }
 
     Ok(())
@@ -301,7 +303,7 @@ fn insert_db(songs: &[Song], conn: &Connection) -> Result<()> {
 fn retrieve_songs_vec(conn: &Connection) -> Result<Vec<Song>> {
     let mut stmt = conn
         .prepare("SELECT * FROM song")
-        .context("Invalid SQL statement when SELECTing all from song.")?;
+        .wrap_err_with(|| format!("Invalid SQL statement when SELECTing all FROM song in {conn:?}."))?;
 
     let song_iter = stmt
         .query_map([], |row| {
@@ -313,12 +315,12 @@ fn retrieve_songs_vec(conn: &Connection) -> Result<Vec<Song>> {
                 score: row.get(4)?,
             })
         })
-        .context("Cannot query song.")?;
+        .wrap_err("Cannot query song.")?;
 
     let mut songs: Vec<Song> = Vec::new();
     for song in song_iter {
         // TODO: remove .unwrap().
-        songs.push(song.context("Queried song unwrap failed.")?);
+        songs.push(song.wrap_err("Queried song unwrap failed.")?);
     }
 
     Ok(songs)

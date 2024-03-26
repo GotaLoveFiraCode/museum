@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 rusqlite = { version = "0.31.0", features = ["bundled"] }
-anyhow = "1.0.81"
+color-eyre = "0.6.3"
 
 # Not sure yet…
 ## Will use later when more args are required.
