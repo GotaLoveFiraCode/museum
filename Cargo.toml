@@ -14,5 +14,3 @@ color-eyre = "0.6.3"
 owo-colors = "3"
 # Commandline argument handler.
 clap = { version = "4.5.3", features = ["derive"] }
-## Commandline completions for above crate.
-clap_complete = "4.5.1"

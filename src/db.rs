@@ -86,7 +86,8 @@ pub fn retrieve_songs_vec(conn: &Connection) -> Result<Vec<Song>> {
     //     songs.push(song.wrap_err("Queried song unwrap failed.")?);
     // }
     
-    songs.extend(song_iter.map(|song| song.unwrap()));
+    // This is faster but uses unwrap…
+    songs.extend(song_iter.map(Result::unwrap));
 
     Ok(songs)
 }
