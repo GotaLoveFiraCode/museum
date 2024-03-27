@@ -1,11 +1,24 @@
+use std::path::PathBuf;
+use crate::song::Song;
 use color_eyre::eyre::{Result, WrapErr};
 use rusqlite::Connection;
-use crate::song::Song;
 
-/// Starts (for now) in-memory `SQLite` database,
+/// Connect to DB.
+/// If DB doesn’t exist, create it.
+/// Always in same location, same name.
+/// Returns `rusqlite::Connection`
+pub fn connect(data_dir: &PathBuf) -> Result<Connection> {
+    let conn = Connection::open(data_dir.join("museum/music.db3"))
+        .wrap_err_with(|| format!("Rusqlite DB connection refused. DB location: {data_dir:?}"))?;
+
+    Ok(conn)
+}
+
+/// Starts `SQLite` database,
 /// and adds `song` table to it with error handling.
-pub fn init() -> Result<Connection> {
-    let conn = Connection::open_in_memory().wrap_err("Rusqlite in-memory connection refused.")?;
+/// Should only be called once.
+pub fn init(song: &[Song], data_dir: &PathBuf) -> Result<Connection> {
+    let conn = connect(data_dir).wrap_err("Connection refused when initializing DB.")?;
 
     conn.execute(
         "CREATE TABLE song (
@@ -19,21 +32,30 @@ pub fn init() -> Result<Connection> {
     )
     .wrap_err_with(|| format!("Invalid SQL command when CREATEing song TABLE in `{conn:?}`."))?;
 
+    insert(song, &conn).wrap_err_with(||
+        format!("Failed to INSERT songs INTO database `{conn:?}` while initializing.")
+    )?;
+
     Ok(conn)
 }
 
-/// Replace for `update_db` later.
-pub fn insert(songs: &[Song], conn: &Connection) -> Result<()> {
+/// Only meant to be run once.
+/// Part of initialization of DB.
+/// Adds all songs to new database.
+fn insert(songs: &[Song], conn: &Connection) -> Result<()> {
     for song in songs {
-        let score: Option<f64> = if song.score.is_none() {
-            Some(song.calc_score())
-        } else {
-            song.score
-        };
+        // Only bother calculating `score` when song gets `touched`…
+        // let score: Option<f64> = if song.score.is_none() {
+        //     Some(song.calc_score())
+        // } else {
+        //     song.score
+        // };
+
+        // How do I do this concurrently? HOW? IS IT EVEN POSSIBLE? HOW?!
 
         conn.execute(
             "INSERT INTO song (path, touches, skips, score) VALUES (?1, ?2, ?3, ?4)",
-            (&song.path, &song.touches, &song.skips, score),
+            (&song.path, &song.touches, &song.skips, &song.score),
         )
         .wrap_err_with(|| format!("Invalid SQL statement when INSERTing Song INTO database.\nSong: {song:?}.\nDB: {conn:?}."))?;
     }
@@ -59,7 +81,7 @@ pub fn retrieve_songs_vec(conn: &Connection) -> Result<Vec<Song>> {
                 score: row.get(4)?,
             })
         })
-        .wrap_err("Cannot query song.")?;
+        .wrap_err("Cannot query songs.")?;
 
     let mut songs: Vec<Song> = Vec::new();
     for song in song_iter {
@@ -69,4 +91,3 @@ pub fn retrieve_songs_vec(conn: &Connection) -> Result<Vec<Song>> {
 
     Ok(songs)
 }
-

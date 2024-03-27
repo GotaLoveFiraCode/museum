@@ -1,4 +1,6 @@
 use color_eyre::eyre::{ensure, Result, WrapErr};
+use etcetera::BaseStrategy;
+use owo_colors::OwoColorize;
 use std::path::PathBuf;
 
 /// Code related to Songs specifically.
@@ -34,32 +36,51 @@ fn main() -> Result<()> {
         )
     })?;
 
-    println!(":: Searching for music…");
-    // A little redundant, but more future proof.
-    let files = real::find_music(&music_dir).wrap_err_with(|| {
-        format!("Failed to find music files with `fd` from {music_dir:?}!")
-    })?;
-    // TODO: support multiple music file formats.
-    println!("==> {} flac files found!", files.len());
+    println!(":: {}…", "Checking for existing music database".yellow());
+    // Find system application data location.
+    let data_dir = etcetera::choose_base_strategy()
+        .wrap_err("Failed to set `etcetera`’s strategy.")?
+        .data_dir();
 
-    println!(":: Starting to catalogue music in SQLite…");
-    // TODO: persistent SQLite DB.
-    let conn = db::init().wrap_err("Failed to initialize in-memory SQLite database.")?;
-    // TODO: `update_db()`.
-    db::insert(&files, &conn)
-        .wrap_err_with(|| format!("Failed to INSERT songs INTO database `{conn:?}`."))?;
-    println!("==> Music catalogue complete!");
+    let conn: rusqlite::Connection;
 
-    println!(":: Displaying catalogued songs in database…");
+    if data_dir.join("museum/music.db3").exists() {
+        println!("==> {}", "Existing database found!".green());
+        conn = db::connect(&data_dir)?;
+    } else {
+        println!(
+            "==> {} {}…",
+            "Existing database not found!".yellow(),
+            "Creating new database".green()
+        );
+
+        println!(":: {}…", "Searching for music".yellow());
+        let files = real::find_music(&music_dir).wrap_err_with(|| {
+            format!("Failed to find music files with `fd` from {music_dir:?}!")
+        })?;
+        // TODO: support multiple music file formats.
+        println!("==> {} flac files found!", files.len().green().bold());
+
+        println!(
+            ":: {}… {}",
+            "Starting to catalogue music in SQLite".yellow(),
+            "This may take a while!".red().bold()
+        );
+        // TODO: persistent SQLite DB.
+        // TODO: `update_db()`.
+        conn = db::init(&files, &data_dir).wrap_err("Failed to initialize SQLite database.")?;
+        println!("==> {}", "Music catalogue complete!".green());
+    }
+
+    println!(":: {}…", "Displaying catalogued songs in database".yellow());
     // TODO: `retrieve_song_obj()`.
     let songs = db::retrieve_songs_vec(&conn)
         .wrap_err_with(|| format!("Failed to retrieve songs from `{conn:?}`."))?;
     for song in songs {
-        println!("==> Found \"{}\"", song.path);
+        println!("==> Found \"{}\"", song.path.blue());
     }
 
-    println!(":: THAT’S ALL, FOLKS!");
+    println!(":: {}", "THAT’S ALL, FOLKS!".green().bold());
 
     Ok(())
 }
-

@@ -4,12 +4,15 @@ version = "0.4.3"
 edition = "2021"
 
 [dependencies]
+# SQLite
 rusqlite = { version = "0.31.0", features = ["bundled"] }
+# Find data directory for SQLite DB.
+etcetera = "0.8"
+# Error handling with colors.
 color-eyre = "0.6.3"
-
-# Not sure yet…
-## Will use later when more args are required.
+# Colored output.
+owo-colors = "3"
+# Commandline argument handler.
 clap = { version = "4.5.3", features = ["derive"] }
+## Commandline completions for above crate.
 clap_complete = "4.5.1"
-# Colors in output. Use when there’s more output.
-nu-ansi-term = "0.49"

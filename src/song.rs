@@ -21,6 +21,7 @@ pub struct Song {
 }
 
 impl Song {
+    #![allow(dead_code)]
     #[must_use]
     /// Calculates the "score" of the song in question.
     /// Takes touches and skips into account.
