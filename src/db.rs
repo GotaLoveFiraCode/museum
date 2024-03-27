@@ -18,7 +18,7 @@ pub fn connect(data_dir: &PathBuf) -> Result<Connection> {
 /// and adds `song` table to it with error handling.
 /// Should only be called once.
 pub fn init(song: &[Song], data_dir: &PathBuf) -> Result<Connection> {
-    let conn = connect(data_dir).wrap_err("Connection refused when initializing DB.")?;
+    let mut conn = connect(data_dir).wrap_err("Connection refused when initializing DB.")?;
 
     conn.execute(
         "CREATE TABLE song (
@@ -32,7 +32,7 @@ pub fn init(song: &[Song], data_dir: &PathBuf) -> Result<Connection> {
     )
     .wrap_err_with(|| format!("Invalid SQL command when CREATEing song TABLE in `{conn:?}`."))?;
 
-    insert(song, &conn).wrap_err_with(||
+    insert(song, &mut conn).wrap_err_with(||
         format!("Failed to INSERT songs INTO database `{conn:?}` while initializing.")
     )?;
 
@@ -42,24 +42,21 @@ pub fn init(song: &[Song], data_dir: &PathBuf) -> Result<Connection> {
 /// Only meant to be run once.
 /// Part of initialization of DB.
 /// Adds all songs to new database.
-fn insert(songs: &[Song], conn: &Connection) -> Result<()> {
-    for song in songs {
-        // Only bother calculating `score` when song gets `touched`…
-        // let score: Option<f64> = if song.score.is_none() {
-        //     Some(song.calc_score())
-        // } else {
-        //     song.score
-        // };
+///
+/// VERY FAST!
+fn insert(songs: &[Song], conn: &mut Connection) -> Result<()> {
+    let tx = conn.transaction()?;
 
-        // How do I do this concurrently? HOW? IS IT EVEN POSSIBLE? HOW?!
+    {
+        let mut stmt = tx.prepare("INSERT INTO song (path, touches, skips, score) VALUES (?1, ?2, ?3, ?4)")?;
 
-        conn.execute(
-            "INSERT INTO song (path, touches, skips, score) VALUES (?1, ?2, ?3, ?4)",
-            (&song.path, &song.touches, &song.skips, &song.score),
-        )
-        .wrap_err_with(|| format!("Invalid SQL statement when INSERTing Song INTO database.\nSong: {song:?}.\nDB: {conn:?}."))?;
+        for song in songs {
+            stmt.execute((&song.path, &song.touches, &song.skips, &song.score))
+                .wrap_err_with(|| format!("Invalid SQL statement when INSERTing Song INTO database!\nSong: {song:?}"))?;
+        }
     }
 
+    tx.commit().wrap_err("Commiting SQL transaction failed.")?;
     Ok(())
 }
 
@@ -84,10 +81,12 @@ pub fn retrieve_songs_vec(conn: &Connection) -> Result<Vec<Song>> {
         .wrap_err("Cannot query songs.")?;
 
     let mut songs: Vec<Song> = Vec::new();
-    for song in song_iter {
-        // TODO: remove .unwrap().
-        songs.push(song.wrap_err("Queried song unwrap failed.")?);
-    }
+    // for song in song_iter {
+    //     // TODO: remove .unwrap().
+    //     songs.push(song.wrap_err("Queried song unwrap failed.")?);
+    // }
+    
+    songs.extend(song_iter.map(|song| song.unwrap()));
 
     Ok(songs)
 }
