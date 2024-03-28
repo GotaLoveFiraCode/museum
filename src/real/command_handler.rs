@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use clap::Parser;
 
+/// Is this the DOC?
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 pub struct Cli {

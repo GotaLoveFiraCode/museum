@@ -1,29 +1,26 @@
-use std::path::PathBuf;
+use std::path::Path;
 use crate::song::Song;
 use color_eyre::eyre::{Result, WrapErr};
 use rusqlite::Connection;
 
-/// Connect to DB.
-/// If DB doesn’t exist, create it.
-/// Always in same location, same name.
-/// Returns `rusqlite::Connection`
-pub fn connect(data_dir: &PathBuf) -> Result<Connection> {
+/// Connect to DB. If DB doesn’t exist, create it. Always in same location, same name. Returns
+/// `rusqlite::Connection`
+pub fn connect(data_dir: &Path) -> Result<Connection> {
     let conn = Connection::open(data_dir.join("museum/music.db3"))
         .wrap_err_with(|| format!("Rusqlite DB connection refused. DB location: {data_dir:?}"))?;
 
     Ok(conn)
 }
 
-/// Starts `SQLite` database,
-/// and adds `song` table to it with error handling.
-/// Should only be called once.
-pub fn init(song: &[Song], data_dir: &PathBuf) -> Result<Connection> {
+/// Starts `SQLite` database, and adds `song` table to it with error handling. Should only be
+/// called once.
+pub fn init(song: &[Song], data_dir: &Path) -> Result<Connection> {
     let mut conn = connect(data_dir).wrap_err("Connection refused when initializing DB.")?;
 
     conn.execute(
-        "CREATE TABLE song (
+        "CREATE TABLE IF NOT EXISTS song (
             id      INTEGER PRIMARY KEY,
-            path    TEXT NOT NULL,
+            path    TEXT    NOT NULL,
             touches INTEGER NOT NULL,
             skips   INTEGER NOT NULL,
             score   BLOB
@@ -68,6 +65,7 @@ pub fn retrieve_songs_vec(conn: &Connection) -> Result<Vec<Song>> {
         format!("Invalid SQL statement when SELECTing all FROM song in {conn:?}.")
     })?;
 
+    // Also retrieve `id`, to avoid duplicates later.
     let song_iter = stmt
         .query_map([], |row| {
             Ok(Song {
@@ -81,13 +79,10 @@ pub fn retrieve_songs_vec(conn: &Connection) -> Result<Vec<Song>> {
         .wrap_err("Cannot query songs.")?;
 
     let mut songs: Vec<Song> = Vec::new();
-    // for song in song_iter {
-    //     // TODO: remove .unwrap().
-    //     songs.push(song.wrap_err("Queried song unwrap failed.")?);
-    // }
-    
-    // This is faster but uses unwrap…
-    songs.extend(song_iter.map(Result::unwrap));
+    // Could use extend, but then no error handling.
+    for song in song_iter {
+        songs.push(song.wrap_err("Queried song unwrap failed.")?);
+    }
 
     Ok(songs)
 }

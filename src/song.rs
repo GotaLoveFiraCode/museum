@@ -6,6 +6,7 @@
 #[derive(Debug, Default)]
 pub struct Song {
     /// SQL — limit on how many songs can be cataloged.
+    /// Usefull for removing duplicates later.
     #[allow(dead_code)]
     pub id: u32,
     // Change to PathBuf for stability?

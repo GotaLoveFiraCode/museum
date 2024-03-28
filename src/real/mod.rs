@@ -90,12 +90,31 @@ pub fn gatekeeper(music_dir: &Path) -> Result<PathBuf> {
     Ok(music_dir.to_owned())
 }
 
-/// Search `music_dir` for songs using `fd`,
-/// and collect them in a vector.
+/// Search `music_dir` for songs using `fd`, and collect them in a vector.
 ///
-/// Makes sure that files were found, otherwise
-/// returns an error.
+/// Makes sure that files were found, otherwise returns an error.
 pub fn find_music(music_dir: &Path) -> Result<Vec<Song>> {
+    // Create inner function for error handling and scoping. Kinda ugly.
+    fn get_songs(child: std::process::Child) -> Result<Vec<Song>> {
+        let binding = child
+            .wait_with_output()
+            .wrap_err("Failed to collect `fd`s output!")?;
+        let lines = binding
+            .stdout
+            .lines();
+
+        // Excellent example of pedantic error handling.
+        let mut files: Vec<Song> = Vec::new();
+        for path in lines {
+            files.push(Song {
+                path: path.wrap_err("Failed to unwrap path from `fd`")?,
+                ..Default::default()
+            });
+        }
+
+        Ok(files)
+    }
+
     // `$ man fd`
     let child = Command::new("fd")
         // Allow for custom choice of file types. Settings files?
@@ -110,17 +129,7 @@ pub fn find_music(music_dir: &Path) -> Result<Vec<Song>> {
         .spawn()
         .wrap_err("Failed to spawn `fd`! Try installing the `fd-find` dependency.")?;
 
-    let files: Vec<Song> = child
-        .wait_with_output()
-        .wrap_err("Failed to collect `fd`s output!")?
-        .stdout
-        .lines()
-        // Alternatives to using `unwrap()`? Help wanted.
-        .map(|path| Song {
-            path: path.unwrap(),
-            ..Default::default()
-        })
-        .collect();
+    let files = get_songs(child)?;
 
     ensure!(
         !files.is_empty(),
@@ -130,7 +139,10 @@ pub fn find_music(music_dir: &Path) -> Result<Vec<Song>> {
     Ok(files)
 }
 
-pub fn del_old(data_dir: &Path) -> Result<std::process::Child> {
+/// Delete existing database with `rm` system command.
+///
+/// @param `data_dir`: System data directory, passed to avoid re-computation.
+pub fn del_old_db(data_dir: &Path) -> Result<std::process::Child> {
     Command::new("rm")
         .arg(data_dir.join("museum/music.db3").as_os_str())
         .spawn()
