@@ -1,6 +1,6 @@
 [package]
 name = "museum"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 
 [dependencies]
@@ -14,3 +14,5 @@ color-eyre = "0.6.3"
 owo-colors = "3"
 # Commandline argument handler.
 clap = { version = "4.5.3", features = ["derive"] }
+# Playback
+rodio = "0.17.3"

@@ -16,6 +16,9 @@ mod song;
 /// - etc.
 mod real;
 
+/// Play music.
+mod playback;
+
 /// Interact with the `SQLite` database.
 mod db;
 
@@ -32,6 +35,12 @@ fn main() -> Result<()> {
 
     // Arguments.
     let cli = Cli::parse();
+
+    if cli.test_audio {
+        println!(":: {}…", "Playing audio".yellow());
+        playback::test().wrap_err("Failed to play audio.")?;
+        println!("==> {}", "Done!".green());
+    }
 
     // Find system application data location.
     let data_dir = etcetera::choose_base_strategy()

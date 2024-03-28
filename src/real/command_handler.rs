@@ -27,4 +27,8 @@ pub struct Cli {
     /// Add an entire directory of songs to the music database.
     #[arg(short, long, value_name = "DIR", value_hint = clap::ValueHint::DirPath)]
     pub dir_add: Option<PathBuf>,
+
+    /// Test if audio is functioning. May play loud music.
+    #[arg(short, long)]
+    pub test_audio: bool,
 }
