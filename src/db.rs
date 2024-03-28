@@ -1,7 +1,7 @@
-use std::path::Path;
 use crate::song::Song;
 use color_eyre::eyre::{Result, WrapErr};
 use rusqlite::Connection;
+use std::path::Path;
 
 /// Connect to DB. If DB doesn’t exist, create it. Always in same location, same name. Returns
 /// `rusqlite::Connection`
@@ -29,9 +29,9 @@ pub fn init(song: &[Song], data_dir: &Path) -> Result<Connection> {
     )
     .wrap_err_with(|| format!("Invalid SQL command when CREATEing song TABLE in `{conn:?}`."))?;
 
-    insert(song, &mut conn).wrap_err_with(||
+    insert(song, &mut conn).wrap_err_with(|| {
         format!("Failed to INSERT songs INTO database `{conn:?}` while initializing.")
-    )?;
+    })?;
 
     Ok(conn)
 }
@@ -45,11 +45,16 @@ fn insert(songs: &[Song], conn: &mut Connection) -> Result<()> {
     let tx = conn.transaction()?;
 
     {
-        let mut stmt = tx.prepare("INSERT INTO song (path, touches, skips, score) VALUES (?1, ?2, ?3, ?4)")?;
+        let mut stmt =
+            tx.prepare("INSERT INTO song (path, touches, skips, score) VALUES (?1, ?2, ?3, ?4)")?;
 
         for song in songs {
             stmt.execute((&song.path, &song.touches, &song.skips, &song.score))
-                .wrap_err_with(|| format!("Invalid SQL statement when INSERTing Song INTO database!\nSong: {song:?}"))?;
+                .wrap_err_with(|| {
+                    format!(
+                        "Invalid SQL statement when INSERTing Song INTO database!\nSong: {song:?}"
+                    )
+                })?;
         }
     }
 

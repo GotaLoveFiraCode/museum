@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use clap::Parser;
+use std::path::PathBuf;
 
 /// Is this the DOC?
 #[derive(Parser)]
@@ -9,7 +9,7 @@ pub struct Cli {
     /// music directory.
     ///
     /// The music directory is where `museum` will search for FLAC files.
-    /// 
+    ///
     /// If you do not call this, but no database can be found,
     /// a new one will be generated from a directory of your choice.
     /// If a database is found, it will be used.

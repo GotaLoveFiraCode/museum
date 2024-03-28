@@ -99,9 +99,7 @@ pub fn find_music(music_dir: &Path) -> Result<Vec<Song>> {
         let binding = child
             .wait_with_output()
             .wrap_err("Failed to collect `fd`s output!")?;
-        let lines = binding
-            .stdout
-            .lines();
+        let lines = binding.stdout.lines();
 
         // Excellent example of pedantic error handling.
         let mut files: Vec<Song> = Vec::new();
@@ -142,14 +140,12 @@ pub fn find_music(music_dir: &Path) -> Result<Vec<Song>> {
 /// Delete existing database with `rm` system command.
 ///
 /// @param `data_dir`: System data directory, passed to avoid re-computation.
-pub fn del_old_db(data_dir: &Path) -> Result<std::process::Child> {
-    Command::new("rm")
-        .arg(data_dir.join("museum/music.db3").as_os_str())
-        .spawn()
-        .wrap_err_with(|| {
-            format!(
-                "Failed to remove existing database. Try running `rm \"{}/museum/music.db3\"`",
-                data_dir.display()
-            )
-        })
+pub fn del_old_db(data_dir: &Path) -> Result<()> {
+    std::fs::remove_file(data_dir.join("museum/music.db3")).wrap_err_with(|| {
+        format!(
+            "Failed to delete existing database. Try running `rm \"{}/museum/music.db3\"`",
+            data_dir.display()
+        )
+    })?;
+    Ok(())
 }

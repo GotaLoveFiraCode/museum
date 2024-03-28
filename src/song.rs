@@ -114,4 +114,3 @@ impl Song {
         f64::from(self.touches + 1).log(1.2)
     }
 }
-
