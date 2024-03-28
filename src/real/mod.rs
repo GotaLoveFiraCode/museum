@@ -61,17 +61,11 @@ pub fn gatekeeper(music_dir: &Path) -> Result<PathBuf> {
 
     ensure!(
         music_dir.exists(),
-        format!(
-            "Music directory `{}` does not exist!",
-            music_dir.display()
-        )
+        format!("Music directory `{}` does not exist!", music_dir.display())
     );
     ensure!(
         music_dir.is_dir(),
-        format!(
-            "Argument `{}` is not a directory!",
-            music_dir.display()
-        )
+        format!("Argument `{}` is not a directory!", music_dir.display())
     );
     ensure!(
         music_dir.is_absolute(),
@@ -134,4 +128,16 @@ pub fn find_music(music_dir: &Path) -> Result<Vec<Song>> {
     );
 
     Ok(files)
+}
+
+pub fn del_old(data_dir: &Path) -> Result<std::process::Child> {
+    Command::new("rm")
+        .arg(data_dir.join("museum/music.db3").as_os_str())
+        .spawn()
+        .wrap_err_with(|| {
+            format!(
+                "Failed to remove existing database. Try running `rm \"{}/museum/music.db3\"`",
+                data_dir.display()
+            )
+        })
 }

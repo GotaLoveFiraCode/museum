@@ -41,7 +41,16 @@ fn main() -> Result<()> {
             format!("Failed condition for: argument music directory `{path:?}`!")
         })?;
 
-        println!(":: {} {}…", "Creating new database for".green(), path.display().blue());
+        println!(
+            ":: {} {}…",
+            "Creating new database for".green(),
+            path.display().blue()
+        );
+
+        if data_dir.join("museum/music.db3").exists() {
+            println!("==> {}…", "Deleting old database".purple());
+            real::del_old(&data_dir)?;
+        }
 
         println!(":: {}…", "Searching for music".yellow());
         let files = real::find_music(&music_dir).wrap_err_with(|| {
@@ -55,25 +64,27 @@ fn main() -> Result<()> {
             "Starting to catalogue music in SQLite".yellow(),
             "This may take a while!".red().bold()
         );
+
         conn = db::init(&files, &data_dir).wrap_err("Failed to initialize SQLite database.")?;
         println!("==> {}", "Music catalogue complete!".green());
     } else {
         println!(":: {}…", "Checking for existing music database".yellow());
-        ensure!(!data_dir.join("museum/music.db3").exists(), "…");
-        println!("==> {}", "Existing database found!".green());
+        ensure!(data_dir.join("museum/music.db3").exists(), "No previous database found! Run `museum --help`.");
+        println!("==> {} {}", "Existing database found!".green(), "Use `-l` to list songs".italic());
 
         conn = db::connect(&data_dir)?;
     }
 
-    println!(":: {}…", "Displaying catalogued songs in database".yellow());
-    // TODO: `retrieve_song_obj()`.
-    let songs = db::retrieve_songs_vec(&conn)
-        .wrap_err_with(|| format!("Failed to retrieve songs from `{conn:?}`."))?;
-    for song in songs {
-        println!("==> Found \"{}\"", song.path.blue());
+    if cli.list {
+        println!(":: {}…", "Displaying catalogued songs in database".yellow());
+        // TODO: `retrieve_song_obj()`.
+        let songs = db::retrieve_songs_vec(&conn)
+            .wrap_err_with(|| format!("Failed to retrieve songs from `{conn:?}`."))?;
+        for song in songs {
+            println!("==> Found \"{}\"", song.path.blue());
+        }
     }
 
     println!(":: {}", "THAT’S ALL, FOLKS!".green().bold());
-
     Ok(())
 }
