@@ -12,21 +12,24 @@ Please help me.
 
 ## Roadmap
 
-- [ ] Actually play music…?
+- [x] Actually play music…?
+	+ [ ] Controls: pause skip etc. Ideally through independent commands or TUI
+		- [ ] Demonize.
+		- [ ] TUI?
+	+ [ ] Play songs *from the database*, not just test songs…
 - [x] Add install instructions.
 - [ ] Better experience early on.
 - [ ] Categorize stuff by genre/mood (separate music dirs using symlinks? Or SQLite DBs?)
-- [ ] Colors. Make stuff pretty.
+- [x] Colors. Make stuff pretty.
 - [ ] Decay system, so old data becomes irrelevant.
-- [ ] Demonize.
 - [ ] Different file types without having to change the code…
 - [ ] Figure out how to list `fd-find` as a dependency somehow. (Is this bullet point enough?)
 - [x] Get a better acronym.
-- [ ] Modules. Use them. Not just one giant file. Please.
-- [ ] Store more information with each song.
-- [ ] TUI?
-- [x] Use `anyhow` for proper error management.
-- [ ] Use clap crate for proper argument management.
+- [x] Modules. Use them. Not just one giant file. Please.
+- [ ] Store more information with each song (metadata).
+- [x] ~Use `anyhow` for proper error management.~
+	+ [x] *Use `color-eyre` for proper error handling.*
+- [x] Use clap crate for proper argument management.
 - [x] Use SQLite DBs instead of JSON.
 
 ## How do I use this?
@@ -48,6 +51,8 @@ Eventually, this will be a proper program that will play music *intelligently* (
 	`$ echo "be patient"`
 - Rust/cargo/etc. \
 	`$ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- Alsa and a working audio system. Can’t play music without alsa…
+	+ I’m not sure how this works on macOS…
 
 ### I don’t use FLAC? How do I pretend to use this?
 
@@ -70,6 +75,14 @@ Command::new("fd")
 ```
 
 ---
+
+The following file types are supported:
+
+- MP3
+- WAV
+- Vorbis
+- FLAC (default)
+- MP4 and ACC, but disabled by default. Open an issue if you want support for them.
 
 Ignore the following content — most of it is outdated or irrelevant.
 
