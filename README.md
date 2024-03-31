@@ -13,10 +13,10 @@ Please help me.
 ## Roadmap
 
 - [x] Actually play music…?
-	+ [ ] Controls: pause skip etc. Ideally through independent commands or TUI
+	+ [x] Controls: pause skip etc. Ideally through independent commands or TUI
 		- [ ] Demonize.
 		- [ ] TUI?
-	+ [ ] Play songs *from the database*, not just test songs…
+	+ [x] Play songs *from the database*, not just test songs…
 - [x] Add install instructions.
 - [ ] Better experience early on.
 - [ ] Categorize stuff by genre/mood (separate music dirs using symlinks? Or SQLite DBs?)
