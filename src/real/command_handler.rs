@@ -1,7 +1,10 @@
 use clap::Parser;
 use std::path::PathBuf;
 
-/// Is this the DOC?
+/// MUSEUM — Muse: Unleashing Music; A Curated Music Queue.
+///
+/// MUSEUM is a program to catalog your entire music library,
+/// and then receive intelligent music suggestions. It also plays music.
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
