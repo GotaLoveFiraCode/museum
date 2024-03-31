@@ -20,15 +20,18 @@ pub struct Cli {
     #[arg(short, long)]
     pub list: bool,
 
-    /// Add a specific song to the music database.
+    /// WIP: Add a specific song to the music database.
     #[arg(short, long, value_name = "FILE", value_hint = clap::ValueHint::FilePath)]
     pub add: Option<PathBuf>,
 
-    /// Add an entire directory of songs to the music database.
+    /// WIP: Add an entire directory of songs to the music database.
     #[arg(short, long, value_name = "DIR", value_hint = clap::ValueHint::DirPath)]
     pub dir_add: Option<PathBuf>,
 
-    /// Test if audio is functioning. May play loud music.
+    /// Test if system is functioning.
+    ///
+    /// Plays the first three songs from the database,
+    /// with rudimentary audio controls (pause, skip, stop).
     #[arg(short, long)]
     pub test_audio: bool,
 }
