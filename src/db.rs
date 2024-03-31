@@ -91,3 +91,30 @@ pub fn retrieve_songs_vec(conn: &Connection) -> Result<Vec<Song>> {
 
     Ok(songs)
 }
+
+pub fn retrieve_first_songs(conn: &Connection, count: u8) -> Result<Vec<Song>> {
+    let mut stmt = conn.prepare("SELECT * FROM song LIMIT (?1)").wrap_err_with(|| {
+        format!("Invalid SQL statement when SELECTing all FROM song in {conn:?}.")
+    })?;
+
+    // Also retrieve `id`, to avoid duplicates later.
+    let song_iter = stmt
+        .query_map([count], |row| {
+            Ok(Song {
+                id: row.get(0)?,
+                path: row.get(1)?,
+                touches: row.get(2)?,
+                skips: row.get(3)?,
+                score: row.get(4)?,
+            })
+        })
+        .wrap_err("Cannot query songs.")?;
+
+    let mut songs: Vec<Song> = Vec::new();
+    // Could use extend, but then no error handling.
+    for song in song_iter {
+        songs.push(song.wrap_err("Queried song unwrap failed.")?);
+    }
+
+    Ok(songs)
+}

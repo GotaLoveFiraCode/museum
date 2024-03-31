@@ -1,11 +1,56 @@
 use crate::song::Song;
+use crate::db;
+
 use color_eyre::eyre::{ensure, Result, WrapErr};
 use owo_colors::OwoColorize;
+use rusqlite::Connection;
+
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 pub mod command_handler;
+
+/// Delete old database, install new one
+/// in passed data directory, with passed
+/// music directory (`path`).
+///
+/// @param `path`: Music directory argument.
+/// @param `data_dir`: System data directory.
+pub fn update_db(path: &Path, data_dir: &Path) -> Result<Connection> {
+    // Make sure argument is valid.
+    let music_dir = gatekeeper(path)
+        .wrap_err_with(|| format!("Failed condition for: argument music directory `{path:?}`!"))?;
+
+    println!(
+        ":: {} {}…",
+        "Creating new database for".green(),
+        path.display().blue()
+    );
+
+    if data_dir.join("museum/music.db3").exists() {
+        println!("==> {}…", "Deleting old database".purple());
+        del_old_db(data_dir)?;
+    }
+
+    println!(":: {}…", "Searching for music".yellow());
+    let files = find_music(&music_dir)
+        .wrap_err_with(|| format!("Failed to find music files with `fd` from {music_dir:?}!"))?;
+    // TODO: support multiple music file formats.
+    println!("==> {} flac files found!", files.len().green().bold());
+
+    println!(
+        ":: {}… {}",
+        "Starting to catalogue music in SQLite".yellow(),
+        "This may take a while!".red().bold()
+    );
+
+    let db_conn = db::init(&files, data_dir)
+        .wrap_err("Failed to initialize SQLite database.")?;
+    println!("==> {}", "Music catalogue complete!".green());
+
+    Ok(db_conn)
+}
 
 /// Makes sure that the given `music_dir` is
 ///     a) a *absolute* path;
@@ -24,7 +69,7 @@ pub mod command_handler;
 /// ```rust
 /// let new_music_dir = gatekeeper(old_music_dir)?;
 /// ```
-pub fn gatekeeper(music_dir: &Path) -> Result<PathBuf> {
+fn gatekeeper(music_dir: &Path) -> Result<PathBuf> {
     if music_dir.is_relative() {
         println!(
             ":: {} `{}` {}…",
@@ -93,7 +138,7 @@ pub fn gatekeeper(music_dir: &Path) -> Result<PathBuf> {
 /// Search `music_dir` for songs using `fd`, and collect them in a vector.
 ///
 /// Makes sure that files were found, otherwise returns an error.
-pub fn find_music(music_dir: &Path) -> Result<Vec<Song>> {
+fn find_music(music_dir: &Path) -> Result<Vec<Song>> {
     // Create inner function for error handling and scoping. Kinda ugly.
     fn get_songs(child: std::process::Child) -> Result<Vec<Song>> {
         let binding = child
@@ -140,7 +185,7 @@ pub fn find_music(music_dir: &Path) -> Result<Vec<Song>> {
 /// Delete existing database with `rm` system command.
 ///
 /// @param `data_dir`: System data directory, passed to avoid re-computation.
-pub fn del_old_db(data_dir: &Path) -> Result<()> {
+fn del_old_db(data_dir: &Path) -> Result<()> {
     std::fs::remove_file(data_dir.join("museum/music.db3")).wrap_err_with(|| {
         format!(
             "Failed to delete existing database. Try running `rm \"{}/museum/music.db3\"`",

@@ -1,9 +1,7 @@
 use color_eyre::eyre::{ensure, Result, WrapErr};
 use etcetera::BaseStrategy;
 use owo_colors::OwoColorize;
-
 use rusqlite::Connection;
-use std::path::Path;
 
 /// Code related to Songs/algo specifically.
 mod song;
@@ -13,6 +11,7 @@ mod song;
 /// - handling command-line arguments,
 /// - finding files,
 /// - converting files into non-real types (`Song`),
+/// - boilerplate,
 /// - etc.
 mod real;
 
@@ -36,12 +35,6 @@ fn main() -> Result<()> {
     // Arguments.
     let cli = Cli::parse();
 
-    if cli.test_audio {
-        println!(":: {}…", "Playing audio".yellow());
-        playback::test().wrap_err("Failed to play audio.")?;
-        println!("==> {}", "Done!".green());
-    }
-
     // Find system application data location.
     let data_dir = etcetera::choose_base_strategy()
         .wrap_err("Failed to set `etcetera`’s strategy.")?
@@ -52,7 +45,7 @@ fn main() -> Result<()> {
 
     // If user gave new music_dir:
     if let Some(path) = cli.update {
-        conn = update_db(&path, &data_dir)
+        conn = real::update_db(&path, &data_dir)
             .wrap_err_with(|| format!("Failed to update DB for {}!", path.display()))?;
     } else {
         println!(":: {}…", "Checking for existing music database".yellow());
@@ -75,50 +68,24 @@ fn main() -> Result<()> {
         let songs = db::retrieve_songs_vec(&conn)
             .wrap_err_with(|| format!("Failed to retrieve songs from `{conn:?}`."))?;
         for song in songs {
-            println!("==> Found \"{}\"", song.path.blue());
+            // println!("==> Found \"{}\"", song.path.blue());
+            println!("==> Found \"{song:?}\"");
         }
+    }
+
+    if cli.test_audio {
+        println!(":: Fetching songs from DB to test play…");
+        let queue = db::retrieve_first_songs(&conn, 3)?;
+        println!(":: {}…", "Playing audio".yellow());
+        // Create vec — this will be *generated* by museum later — for sample queue:
+        // playback::test(&mut queue).wrap_err("Failed to play audio.")?;
+        // let new = playback::wiki_answer(&queue).wrap_err("Failed to play audio.")?;
+        let new = playback::play_queue_with_cmds(&queue).wrap_err("Failed to play audio.")?;
+        println!("==> Updated songs for db: {new:?}");
+        println!("==> {}", "Done!".green());
     }
 
     println!(":: {}", "THAT’S ALL, FOLKS!".green().bold());
     Ok(())
 }
 
-/// Delete old database, install new one
-/// in passed data directory, with passed
-/// music directory (`path`).
-///
-/// @param `path`: Music directory argument.
-/// @param `data_dir`: System data directory.
-fn update_db(path: &Path, data_dir: &Path) -> Result<Connection> {
-    // Make sure argument is valid.
-    let music_dir = real::gatekeeper(path)
-        .wrap_err_with(|| format!("Failed condition for: argument music directory `{path:?}`!"))?;
-
-    println!(
-        ":: {} {}…",
-        "Creating new database for".green(),
-        path.display().blue()
-    );
-
-    if data_dir.join("museum/music.db3").exists() {
-        println!("==> {}…", "Deleting old database".purple());
-        real::del_old_db(data_dir)?;
-    }
-
-    println!(":: {}…", "Searching for music".yellow());
-    let files = real::find_music(&music_dir)
-        .wrap_err_with(|| format!("Failed to find music files with `fd` from {music_dir:?}!"))?;
-    // TODO: support multiple music file formats.
-    println!("==> {} flac files found!", files.len().green().bold());
-
-    println!(
-        ":: {}… {}",
-        "Starting to catalogue music in SQLite".yellow(),
-        "This may take a while!".red().bold()
-    );
-
-    let db_conn = db::init(&files, data_dir).wrap_err("Failed to initialize SQLite database.")?;
-    println!("==> {}", "Music catalogue complete!".green());
-
-    Ok(db_conn)
-}

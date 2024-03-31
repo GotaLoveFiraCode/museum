@@ -3,7 +3,7 @@
 // so older touches and skips are removed?
 //
 // Would probably require an extra type just for interactions…
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Song {
     /// SQL — limit on how many songs can be cataloged.
     /// Usefull for removing duplicates later.
