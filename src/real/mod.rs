@@ -1,5 +1,5 @@
-use crate::song::Song;
 use crate::db;
+use crate::song::Song;
 
 use color_eyre::eyre::{ensure, Result, WrapErr};
 use owo_colors::OwoColorize;
@@ -45,8 +45,7 @@ pub fn update_db(path: &Path, data_dir: &Path) -> Result<Connection> {
         "This may take a while!".red().bold()
     );
 
-    let db_conn = db::init(&files, data_dir)
-        .wrap_err("Failed to initialize SQLite database.")?;
+    let db_conn = db::init(&files, data_dir).wrap_err("Failed to initialize SQLite database.")?;
     println!("==> {}", "Music catalogue complete!".green());
 
     Ok(db_conn)

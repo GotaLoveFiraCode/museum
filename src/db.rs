@@ -93,9 +93,11 @@ pub fn retrieve_songs_vec(conn: &Connection) -> Result<Vec<Song>> {
 }
 
 pub fn retrieve_first_songs(conn: &Connection, count: u8) -> Result<Vec<Song>> {
-    let mut stmt = conn.prepare("SELECT * FROM song LIMIT (?1)").wrap_err_with(|| {
-        format!("Invalid SQL statement when SELECTing all FROM song in {conn:?}.")
-    })?;
+    let mut stmt = conn
+        .prepare("SELECT * FROM song LIMIT (?1)")
+        .wrap_err_with(|| {
+            format!("Invalid SQL statement when SELECTing all FROM song in {conn:?}.")
+        })?;
 
     // Also retrieve `id`, to avoid duplicates later.
     let song_iter = stmt

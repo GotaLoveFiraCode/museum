@@ -74,18 +74,13 @@ fn main() -> Result<()> {
     }
 
     if cli.test_audio {
-        println!(":: Fetching songs from DB to test play…");
+        println!(":: {}…", "Fetching songs from DB to test play".yellow());
         let queue = db::retrieve_first_songs(&conn, 3)?;
         println!(":: {}…", "Playing audio".yellow());
-        // Create vec — this will be *generated* by museum later — for sample queue:
-        // playback::test(&mut queue).wrap_err("Failed to play audio.")?;
-        // let new = playback::wiki_answer(&queue).wrap_err("Failed to play audio.")?;
         let new = playback::play_queue_with_cmds(&queue).wrap_err("Failed to play audio.")?;
-        println!("==> Updated songs for db: {new:?}");
-        println!("==> {}", "Done!".green());
+        println!("==> Updated songs for db: {:?}", new.blue());
     }
 
     println!(":: {}", "THAT’S ALL, FOLKS!".green().bold());
     Ok(())
 }
-

@@ -1,9 +1,10 @@
 use crate::song::Song;
 use color_eyre::eyre::Result;
+use owo_colors::OwoColorize;
 use rodio::{Decoder, OutputStream, Sink};
+
 use std::fs::File;
 use std::io::BufReader;
-
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 
@@ -54,7 +55,7 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
     // TODO: add counter => 3/queue.len()
     thread::spawn(move || {
         for song in queue_copy {
-            println!("==> Now playing \"{}\"", song.path);
+            println!("==> Now playing \"{}\"", song.path.blue());
             let file = BufReader::new(File::open(&song.path).unwrap());
             let source = Decoder::new(file).unwrap();
             // Add song to return with an added `touch`.
@@ -73,13 +74,13 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
         }
 
         tx_copy.send(UserCommands::Stop).unwrap();
-        println!("==> Played all songs.");
+        println!("==> {}", "Played all songs.".green());
     });
 
     loop {
         match rx.recv().unwrap() {
             UserCommands::Pause => {
-                println!("==> Pausing song");
+                println!("==> {}…", "Pausing song".yellow());
                 if sink.is_paused() {
                     sink.play();
                 } else {
@@ -87,7 +88,7 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
                 }
             }
             UserCommands::Skip => {
-                println!("==> Skipping song");
+                println!("==> {}…", "Skipping song".yellow());
                 let mut updated_info = updated_info.lock().unwrap();
                 if let Some(last) = updated_info.last_mut() {
                     // Change the already created added song to include the skip.
@@ -97,10 +98,16 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
                 sink.skip_one();
             }
             UserCommands::Stop => {
-                println!("==> Stopping…");
+                println!("==> {}…", "Stopping".red());
                 break;
             }
-            UserCommands::Unrecognized => println!("==> Unrecognized command. Try 'pause', 'skip', or 'stop'"),
+            UserCommands::Unrecognized => {
+                println!(
+                    "==> {} {}",
+                    "Unrecognized command.".red(),
+                    "Try 'pause', 'skip', or 'stop'".italic()
+                );
+            }
         }
     }
 
