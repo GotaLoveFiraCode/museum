@@ -51,11 +51,13 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
     let updated_info_copy = Arc::clone(&updated_info);
 
     let queue_copy = queue.to_vec();
+    let queue_len = queue_copy.len();
+    let mut ip: u8 = 0;
 
-    // TODO: add counter => 3/queue.len()
     thread::spawn(move || {
         for song in queue_copy {
-            println!("==> Now playing \"{}\"", song.path.blue());
+            ip += 1;
+            println!("==> [{}/{}] Now playing \"{}\"", ip, queue_len, song.path.blue());
             let file = BufReader::new(File::open(&song.path).unwrap());
             let source = Decoder::new(file).unwrap();
             // Add song to return with an added `touch`.
