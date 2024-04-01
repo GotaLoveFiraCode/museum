@@ -2,6 +2,8 @@ use crate::song::Song;
 use color_eyre::eyre::Result;
 use owo_colors::OwoColorize;
 use rodio::{Decoder, OutputStream, Sink};
+use rustyline::error::ReadlineError;
+use rustyline::DefaultEditor;
 
 use std::fs::File;
 use std::io::BufReader;
@@ -13,31 +15,46 @@ enum UserCommands {
     Skip,
     Stop,
     Unrecognized,
+    Error(color_eyre::eyre::Error),
 }
 
 /// Plays the inputed queue with user interaction.
 /// Returns the same queue with updated information.
+/// Function is too long, but I can’t refactor becaues of threads…?
 pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
     let (tx, rx) = mpsc::channel();
     let tx_copy = tx.clone();
+    let mut rl = DefaultEditor::new()?;
 
     thread::spawn(move || {
-        let mut input = String::new();
+        // let mut input = String::new();
         loop {
-            input.clear();
-            std::io::stdin().read_line(&mut input).unwrap();
-            match input.trim() {
-                "pause" => {
-                    tx.send(UserCommands::Pause).unwrap();
+            let readline = rl.readline(">> ");
+            // input.clear();
+            // std::io::stdin().read_line(&mut input).unwrap();
+            // match input.trim() {
+            match readline {
+                Ok(cmd) => {
+                    match cmd.as_str() {
+                        "pause" => {
+                            tx.send(UserCommands::Pause).unwrap();
+                        }
+                        "skip" => {
+                            tx.send(UserCommands::Skip).unwrap();
+                        }
+                        "stop" | "quit" | "exit" => {
+                            tx.send(UserCommands::Stop).unwrap();
+                        }
+                        _ => {
+                            tx.send(UserCommands::Unrecognized).unwrap();
+                        }
+                    }
                 }
-                "skip" => {
-                    tx.send(UserCommands::Skip).unwrap();
-                }
-                "stop" => {
+                Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
                     tx.send(UserCommands::Stop).unwrap();
                 }
-                _ => {
-                    tx.send(UserCommands::Unrecognized).unwrap();
+                Err(err) => {
+                    tx.send(UserCommands::Error(err.into())).unwrap();
                 }
             }
         }
@@ -57,7 +74,13 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
     thread::spawn(move || {
         for song in queue_copy {
             ip += 1;
-            println!("==> [{}/{}] Now playing \"{}\"", ip, queue_len, song.path.blue());
+            println!(
+                "==> [{}/{}] Now playing \"{}\"",
+                ip,
+                queue_len,
+                song.path.blue()
+            );
+            // Have to use unwrap in closure…
             let file = BufReader::new(File::open(&song.path).unwrap());
             let source = Decoder::new(file).unwrap();
             // Add song to return with an added `touch`.
@@ -109,6 +132,9 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
                     "Unrecognized command.".red(),
                     "Try 'pause', 'skip', or 'stop'".italic()
                 );
+            }
+            UserCommands::Error(err) => {
+                color_eyre::eyre::bail!("Error: {}", err);
             }
         }
     }
