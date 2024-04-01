@@ -105,10 +105,10 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
     loop {
         match rx.recv().unwrap() {
             UserCommands::Pause => {
-                println!("==> {}…", "Pausing song".yellow());
                 if sink.is_paused() {
                     sink.play();
                 } else {
+                    println!("==> {}…", "Pausing song".yellow());
                     sink.pause();
                 }
             }
