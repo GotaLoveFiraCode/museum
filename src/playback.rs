@@ -7,58 +7,58 @@ use rustyline::DefaultEditor;
 
 use std::fs::File;
 use std::io::BufReader;
-use std::sync::{mpsc, Arc, Mutex};
+// use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use std::thread;
 
-enum UserCommands {
-    Pause,
-    Skip,
-    Stop,
-    Unrecognized,
-    Error(color_eyre::eyre::Error),
-}
+// enum UserCommands {
+//     Pause,
+//     Skip,
+//     Stop,
+//     Unrecognized,
+//     Error(color_eyre::eyre::Error),
+// }
 
 /// Plays the inputed queue with user interaction.
 /// Returns the same queue with updated information.
 /// Function is too long, but I can’t refactor becaues of threads…?
 pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
-    let (tx, rx) = mpsc::channel();
-    let tx_copy = tx.clone();
-    let mut rl = DefaultEditor::new()?;
+    // let (tx, rx) = mpsc::channel();
+    // let tx_copy = tx.clone();
 
-    thread::spawn(move || {
-        // let mut input = String::new();
-        loop {
-            let readline = rl.readline(">> ");
-            // input.clear();
-            // std::io::stdin().read_line(&mut input).unwrap();
-            // match input.trim() {
-            match readline {
-                Ok(cmd) => {
-                    match cmd.as_str() {
-                        "pause" => {
-                            tx.send(UserCommands::Pause).unwrap();
-                        }
-                        "skip" => {
-                            tx.send(UserCommands::Skip).unwrap();
-                        }
-                        "stop" | "quit" | "exit" => {
-                            tx.send(UserCommands::Stop).unwrap();
-                        }
-                        _ => {
-                            tx.send(UserCommands::Unrecognized).unwrap();
-                        }
-                    }
-                }
-                Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
-                    tx.send(UserCommands::Stop).unwrap();
-                }
-                Err(err) => {
-                    tx.send(UserCommands::Error(err.into())).unwrap();
-                }
-            }
-        }
-    });
+    // thread::spawn(move || {
+    //     // let mut input = String::new();
+    //     loop {
+    //         let readline = rl.readline(">> ");
+    //         // input.clear();
+    //         // std::io::stdin().read_line(&mut input).unwrap();
+    //         // match input.trim() {
+    //         match readline {
+    //             Ok(cmd) => {
+    //                 match cmd.as_str() {
+    //                     "pause" => {
+    //                         tx.send(UserCommands::Pause).unwrap();
+    //                     }
+    //                     "skip" => {
+    //                         tx.send(UserCommands::Skip).unwrap();
+    //                     }
+    //                     "stop" | "quit" | "exit" => {
+    //                         tx.send(UserCommands::Stop).unwrap();
+    //                     }
+    //                     _ => {
+    //                         tx.send(UserCommands::Unrecognized).unwrap();
+    //                     }
+    //                 }
+    //             }
+    //             Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
+    //                 tx.send(UserCommands::Stop).unwrap();
+    //             }
+    //             Err(err) => {
+    //                 tx.send(UserCommands::Error(err.into())).unwrap();
+    //             }
+    //         }
+    //     }
+    // });
 
     let (_stream, stream_handle) = OutputStream::try_default()?;
     let sink = Arc::new(Sink::try_new(&stream_handle)?);
@@ -71,7 +71,7 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
     let queue_len = queue_copy.len();
     let mut ip: u8 = 0;
 
-    thread::spawn(move || {
+    let music_handle = thread::spawn(move || {
         for song in queue_copy {
             ip += 1;
             println!(
@@ -98,46 +98,96 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
             sink_copy.sleep_until_end();
         }
 
-        tx_copy.send(UserCommands::Stop).unwrap();
-        println!("==> {}", "Played all songs.".green());
+        println!("==> {} Please enter 'quit.'", "Played all songs.".green());
     });
 
+    let mut rl = DefaultEditor::new()?;
     loop {
-        match rx.recv().unwrap() {
-            UserCommands::Pause => {
-                if sink.is_paused() {
-                    sink.play();
-                } else {
-                    println!("==> {}…", "Pausing song".yellow());
-                    sink.pause();
+        let readline = rl.readline(":: ");
+        match readline {
+            Ok(cmd) => {
+                match cmd.as_str() {
+                    "pause" => {
+                        if sink.is_paused() {
+                            sink.play();
+                        } else {
+                            println!("==> {}…", "Pausing song".yellow());
+                            sink.pause();
+                        }
+                    }
+                    "skip" => {
+                        println!("==> {}…", "Skipping song".yellow());
+                        let mut updated_info = updated_info.lock().unwrap();
+                        if let Some(last) = updated_info.last_mut() {
+                            // Change the already created added song to include the skip.
+                            last.skips += 1;
+                        }
+                        drop(updated_info);
+                        sink.skip_one();
+                    }
+                    "stop" | "quit" | "exit" => {
+                        println!("==> {}…", "Stopping".red());
+                        break;
+                    }
+                    _ => {
+                        println!(
+                            "==> {} {}",
+                            "Unrecognized command.".red(),
+                            "Try 'pause', 'skip', or 'quit'".italic()
+                        );
+                    }
                 }
             }
-            UserCommands::Skip => {
-                println!("==> {}…", "Skipping song".yellow());
-                let mut updated_info = updated_info.lock().unwrap();
-                if let Some(last) = updated_info.last_mut() {
-                    // Change the already created added song to include the skip.
-                    last.skips += 1;
-                }
-                drop(updated_info);
-                sink.skip_one();
-            }
-            UserCommands::Stop => {
+            Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
                 println!("==> {}…", "Stopping".red());
                 break;
             }
-            UserCommands::Unrecognized => {
-                println!(
-                    "==> {} {}",
-                    "Unrecognized command.".red(),
-                    "Try 'pause', 'skip', or 'stop'".italic()
-                );
-            }
-            UserCommands::Error(err) => {
+            Err(err) => {
                 color_eyre::eyre::bail!("Error: {}", err);
             }
         }
+
+        if music_handle.is_finished() {
+            break;
+        }
     }
+
+    // loop {
+    //     match rx.recv().unwrap() {
+    //         UserCommands::Pause => {
+                // if sink.is_paused() {
+                //     sink.play();
+                // } else {
+                //     println!("==> {}…", "Pausing song".yellow());
+                //     sink.pause();
+                // }
+    //         }
+    //         UserCommands::Skip => {
+                // println!("==> {}…", "Skipping song".yellow());
+                // let mut updated_info = updated_info.lock().unwrap();
+                // if let Some(last) = updated_info.last_mut() {
+                //     // Change the already created added song to include the skip.
+                //     last.skips += 1;
+                // }
+                // drop(updated_info);
+                // sink.skip_one();
+    //         }
+    //         UserCommands::Stop => {
+    //             println!("==> {}…", "Stopping".red());
+    //             break;
+    //         }
+    //         UserCommands::Unrecognized => {
+                // println!(
+                //     "==> {} {}",
+                //     "Unrecognized command.".red(),
+                //     "Try 'pause', 'skip', or 'stop'".italic()
+                // );
+    //         }
+    //         UserCommands::Error(err) => {
+    //             color_eyre::eyre::bail!("Error: {}", err);
+    //         }
+    //     }
+    // }
 
     let updated_info = updated_info.lock().unwrap();
     Ok(updated_info.to_vec())
