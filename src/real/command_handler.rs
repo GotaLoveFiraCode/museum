@@ -37,4 +37,8 @@ pub struct Cli {
     /// with rudimentary audio controls (pause, skip, stop).
     #[arg(short, long)]
     pub test_audio: bool,
+
+    /// Play random entries from the database. Good for getting started.
+    #[arg(short, long)]
+    pub play_rnd: bool,
 }

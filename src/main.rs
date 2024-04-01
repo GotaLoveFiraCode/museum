@@ -41,7 +41,7 @@ fn main() -> Result<()> {
         .data_dir();
 
     // Un-initialized connection to DB.
-    let conn: Connection;
+    let mut conn: Connection;
 
     // If user gave new music_dir:
     if let Some(path) = cli.update {
@@ -78,7 +78,22 @@ fn main() -> Result<()> {
         let queue = db::retrieve_first_songs(&conn, 3)?;
         println!(":: {}…", "Playing audio".yellow());
         let new = playback::play_queue_with_cmds(&queue).wrap_err("Failed to play audio.")?;
-        println!("==> Updated songs for db: {:?}", new.blue());
+        println!("==> Didn’t update songs: {:?}", new.blue());
+    }
+
+    if cli.play_rnd {
+        println!(":: {}…", "Fetching random songs from DB to play".yellow());
+        // TODO: replace with proper random fetching later.
+        let queue = db::retrieve_first_songs(&conn, 15)?;
+        println!("==> {}", "Successfully created queue!".green());
+
+        println!(":: {}…", "Playing audio".yellow());
+        let updated_queue =
+            playback::play_queue_with_cmds(&queue).wrap_err("Failed to play audio!")?;
+
+        println!(":: {}…", "Updating database".yellow());
+        db::update_songs(&updated_queue, &mut conn)?;
+        println!("==> {}", "Successfully updated DB!".green());
     }
 
     println!(":: {}", "THAT’S ALL, FOLKS!".green().bold());

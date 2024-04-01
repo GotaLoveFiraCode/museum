@@ -62,6 +62,27 @@ fn insert(songs: &[Song], conn: &mut Connection) -> Result<()> {
     Ok(())
 }
 
+/// Iterate through `songs` and UPDATE each entry’s `touches` and `skips`
+/// in the database with the same `id`.
+///
+/// Might switch to batch updates, or using `IN (…)`.
+pub fn update_songs(songs: &[Song], conn: &mut Connection) -> Result<()> {
+    let tx = conn.transaction()?;
+
+    {
+        let mut stmt =
+            tx.prepare("UPDATE song SET touches = (?1), skips = (?2) WHERE id = (?3)")?;
+
+        for song in songs {
+            stmt.execute((&song.touches, &song.skips, &song.id))
+                .wrap_err_with(|| format!("Invalid SQL statement when UPDATEing song: {song:?}"))?;
+        }
+    }
+
+    tx.commit().wrap_err("Commiting SQL transaction failed")?;
+    Ok(())
+}
+
 /// Retrieves all songs from `SQLite` database,
 /// and returns them as a vector of Songs (`Vec<Song>`),
 /// wrapped in a Result.
@@ -92,6 +113,7 @@ pub fn retrieve_songs_vec(conn: &Connection) -> Result<Vec<Song>> {
     Ok(songs)
 }
 
+/// Retrieve first `count` songs from this DB `conn`. Good for testing.
 pub fn retrieve_first_songs(conn: &Connection, count: u8) -> Result<Vec<Song>> {
     let mut stmt = conn
         .prepare("SELECT * FROM song LIMIT (?1)")
