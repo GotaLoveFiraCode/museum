@@ -71,10 +71,20 @@ pub fn update_songs(songs: &[Song], conn: &mut Connection) -> Result<()> {
 
     {
         let mut stmt =
-            tx.prepare("UPDATE song SET touches = (?1), skips = (?2) WHERE id = (?3)")?;
+            tx.prepare("UPDATE song SET touches = (?1), skips = (?2), score (?3) WHERE id = (?4)")?;
 
         for song in songs {
-            stmt.execute((&song.touches, &song.skips, &song.id))
+            // create identical temporary mutable song and calculate score.
+            let mut temp_song = Song {
+                id: song.id,
+                path: song.path.clone(),
+                touches: song.touches,
+                skips: song.skips,
+                ..Default::default()
+            };
+            temp_song.score = Some(song.calc_score());
+
+            stmt.execute((temp_song.touches, temp_song.skips, temp_song.score, temp_song.id))
                 .wrap_err_with(|| format!("Invalid SQL statement when UPDATEing song: {song:?}"))?;
         }
     }
@@ -142,3 +152,5 @@ pub fn retrieve_first_songs(conn: &Connection, count: u8) -> Result<Vec<Song>> {
 
     Ok(songs)
 }
+
+pub fn retrieve_queue() {}
