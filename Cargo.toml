@@ -18,3 +18,5 @@ clap = { version = "4.5.3", features = ["derive"] }
 rodio = "0.17.3"
 # Input
 rustyline = "14"
+# Terminal
+crossterm = "0.27"

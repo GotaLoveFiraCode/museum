@@ -4,87 +4,64 @@ use owo_colors::OwoColorize;
 use rodio::{Decoder, OutputStream, Sink};
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
+use crossterm::cursor;
+use crossterm::terminal;
 
 use std::fs::File;
 use std::io::BufReader;
-// use std::sync::{mpsc, Arc, Mutex};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 
-// enum UserCommands {
-//     Pause,
-//     Skip,
-//     Stop,
-//     Unrecognized,
-//     Error(color_eyre::eyre::Error),
-// }
+enum UserCommands {
+    Pause,
+    Skip,
+    Stop,
+    Unrecognized,
+    Error(color_eyre::eyre::Error),
+    Msg(String),
+}
 
 /// Plays the inputed queue with user interaction.
 /// Returns the same queue with updated information.
-/// Function is too long, but I can’t refactor becaues of threads…?
+/// 
+/// SO FUCKING BROKEN PLS FIXME!
+///
+/// maybe use crossterm?
+/// or daemon?
+/// or just give up?
+/// IDK!?
+/// FUCK YOU!?
 pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
-    // let (tx, rx) = mpsc::channel();
-    // let tx_copy = tx.clone();
+    let queue = queue.to_vec();
 
-    // thread::spawn(move || {
-    //     // let mut input = String::new();
-    //     loop {
-    //         let readline = rl.readline(">> ");
-    //         // input.clear();
-    //         // std::io::stdin().read_line(&mut input).unwrap();
-    //         // match input.trim() {
-    //         match readline {
-    //             Ok(cmd) => {
-    //                 match cmd.as_str() {
-    //                     "pause" => {
-    //                         tx.send(UserCommands::Pause).unwrap();
-    //                     }
-    //                     "skip" => {
-    //                         tx.send(UserCommands::Skip).unwrap();
-    //                     }
-    //                     "stop" | "quit" | "exit" => {
-    //                         tx.send(UserCommands::Stop).unwrap();
-    //                     }
-    //                     _ => {
-    //                         tx.send(UserCommands::Unrecognized).unwrap();
-    //                     }
-    //                 }
-    //             }
-    //             Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
-    //                 tx.send(UserCommands::Stop).unwrap();
-    //             }
-    //             Err(err) => {
-    //                 tx.send(UserCommands::Error(err.into())).unwrap();
-    //             }
-    //         }
-    //     }
-    // });
+    let (tx, rx) = mpsc::channel();
+    let tx_music = tx.clone();
 
     let (_stream, stream_handle) = OutputStream::try_default()?;
     let sink = Arc::new(Sink::try_new(&stream_handle)?);
-    let sink_copy = Arc::clone(&sink);
+    let sink_music = Arc::clone(&sink);
 
     let updated_info: Arc<Mutex<Vec<Song>>> = Arc::new(Mutex::new(Vec::new()));
-    let updated_info_copy = Arc::clone(&updated_info);
-
-    let queue_copy = queue.to_vec();
-    let queue_len = queue_copy.len();
-    let mut ip: u8 = 0;
+    let updated_info_music = Arc::clone(&updated_info);
 
     let music_handle = thread::spawn(move || {
-        for song in queue_copy {
+        let mut ip: u8 = 0;
+        let queue_len = queue.len();
+
+        for song in queue {
             ip += 1;
-            println!(
-                "==> [{}/{}] Now playing \"{}\"",
-                ip,
-                queue_len,
+            // You have to send the message so the prompt doesn’t break.
+            tx_music.send(UserCommands::Msg(format!(
+                "==> [{ip}/{queue_len}] Now playing \"{}\"",
                 song.path.blue()
-            );
-            // Have to use unwrap in closure…
+            ))).unwrap();
+
             let file = BufReader::new(File::open(&song.path).unwrap());
             let source = Decoder::new(file).unwrap();
-            // Add song to return with an added `touch`.
-            let mut updated_info = updated_info_copy.lock().unwrap();
+
+            // Add song to return with +1 touches.
+            // Calc score when INSERTing into DB.
+            let mut updated_info = updated_info_music.lock().unwrap();
             updated_info.push(Song {
                 id: song.id,
                 path: song.path.clone(),
@@ -92,103 +69,109 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
                 skips: song.skips,
                 score: None,
             });
+            // So it can be used by other thread (to add skips).
             drop(updated_info);
-            sink_copy.append(source);
+
+            sink_music.append(source);
             // returns early when `skip_one` is called.
-            sink_copy.sleep_until_end();
+            sink_music.sleep_until_end();
         }
 
-        println!("==> {} Please enter 'quit.'", "Played all songs.".green());
+        tx_music.send(UserCommands::Msg(format!("==> {} Please enter 'quit.'",
+            "Played all songs.".green()))).unwrap();
+        // tx_music.send(UserCommands::Stop).unwrap();
     });
 
     let mut rl = DefaultEditor::new()?;
+    // let mut quit = false;
     loop {
-        let readline = rl.readline(":: ");
-        match readline {
-            Ok(cmd) => {
-                match cmd.as_str() {
-                    "pause" => {
-                        if sink.is_paused() {
-                            sink.play();
-                        } else {
-                            println!("==> {}…", "Pausing song".yellow());
-                            sink.pause();
-                        }
-                    }
-                    "skip" => {
-                        println!("==> {}…", "Skipping song".yellow());
-                        let mut updated_info = updated_info.lock().unwrap();
-                        if let Some(last) = updated_info.last_mut() {
-                            // Change the already created added song to include the skip.
-                            last.skips += 1;
-                        }
-                        drop(updated_info);
-                        sink.skip_one();
-                    }
-                    "stop" | "quit" | "exit" => {
-                        println!("==> {}…", "Stopping".red());
-                        break;
-                    }
-                    _ => {
-                        println!(
-                            "==> {} {}",
-                            "Unrecognized command.".red(),
-                            "Try 'pause', 'skip', or 'quit'".italic()
-                        );
-                    }
+        let readline = rl.readline(">> ");
+
+        parse_line(readline, &tx);
+
+        match rx.recv().unwrap() {
+            UserCommands::Pause => {
+                if sink.is_paused() {
+                    sink.play();
+                } else {
+                    println!("==> {}…", "Pausing song".yellow());
+                    sink.pause();
                 }
             }
-            Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
+            UserCommands::Skip => {
+                println!("==> {}…", "Skipping song".yellow());
+                let mut updated_info = updated_info.lock().unwrap();
+                if let Some(last) = updated_info.last_mut() {
+                    // Change the already added song to include the skip.
+                    last.skips += 1;
+                }
+                drop(updated_info);
+                sink.skip_one();
+            }
+            UserCommands::Stop => {
                 println!("==> {}…", "Stopping".red());
                 break;
             }
-            Err(err) => {
+            UserCommands::Unrecognized => {
+                println!(
+                    "==> {} {}",
+                    "Unrecognized command.".red(),
+                    "Try 'pause', 'skip', or 'quit'".italic()
+                );
+            }
+            UserCommands::Msg(msg) => {
+                println!("{msg}");
+            }
+            UserCommands::Error(err) => {
                 color_eyre::eyre::bail!("Error: {}", err);
             }
         }
 
+        // Redundant, but I’m paranoid.
         if music_handle.is_finished() {
             break;
         }
     }
 
-    // loop {
-    //     match rx.recv().unwrap() {
-    //         UserCommands::Pause => {
-                // if sink.is_paused() {
-                //     sink.play();
-                // } else {
-                //     println!("==> {}…", "Pausing song".yellow());
-                //     sink.pause();
-                // }
-    //         }
-    //         UserCommands::Skip => {
-                // println!("==> {}…", "Skipping song".yellow());
-                // let mut updated_info = updated_info.lock().unwrap();
-                // if let Some(last) = updated_info.last_mut() {
-                //     // Change the already created added song to include the skip.
-                //     last.skips += 1;
-                // }
-                // drop(updated_info);
-                // sink.skip_one();
-    //         }
-    //         UserCommands::Stop => {
-    //             println!("==> {}…", "Stopping".red());
-    //             break;
-    //         }
-    //         UserCommands::Unrecognized => {
-                // println!(
-                //     "==> {} {}",
-                //     "Unrecognized command.".red(),
-                //     "Try 'pause', 'skip', or 'stop'".italic()
-                // );
-    //         }
-    //         UserCommands::Error(err) => {
-    //             color_eyre::eyre::bail!("Error: {}", err);
-    //         }
-    //     }
-    // }
-
     let updated_info = updated_info.lock().unwrap();
     Ok(updated_info.to_vec())
 }
+
+fn parse_line(readline: Result<String, ReadlineError>, tx: &mpsc::Sender<UserCommands>) {
+    match readline {
+        Ok(cmd) => {
+            match cmd.as_str() {
+                "pause" => {
+                    tx.send(UserCommands::Pause).unwrap();
+                }
+                "skip" => {
+                    tx.send(UserCommands::Skip).unwrap();
+                }
+                "stop" | "quit" | "exit" => {
+                    tx.send(UserCommands::Stop).unwrap();
+                }
+                _ => {
+                    tx.send(UserCommands::Unrecognized).unwrap();
+                }
+            }
+        }
+        Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
+            tx.send(UserCommands::Stop).unwrap();
+        }
+        Err(err) => {
+            tx.send(UserCommands::Error(err.into())).unwrap();
+        }
+    }
+}
+
+
+
+
+// fn play(queue: &[Song]) -> Result<Vec<Song>> {
+//     let queue = queue.to_vec();
+//     let (input_tx, input_rx) = mpsc::channel();
+//     let (output_tx, output_rx) = mpsc::channel();
+//     let tx_music = input_tx.clone();
+// }
+
+
