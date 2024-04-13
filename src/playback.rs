@@ -24,7 +24,7 @@ enum UserCommands {
 /// Plays the inputed queue with user interaction.
 /// Returns the same queue with updated information.
 /// 
-/// SO FUCKING BROKEN PLS FIXME!
+/// SO FUCKING BROKEN, PLS FIXME!
 ///
 /// maybe use crossterm?
 /// or daemon?

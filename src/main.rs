@@ -83,8 +83,7 @@ fn main() -> Result<()> {
 
     if cli.play_rnd {
         println!(":: {}…", "Fetching random songs from DB to play".yellow());
-        // TODO: replace with proper random fetching later.
-        let queue = db::retrieve_first_songs(&conn, 15)?;
+        let queue = db::retrieve_rnd_queue(&conn)?;
         println!("==> {}", "Successfully created queue!".green());
 
         println!(":: {}…", "Playing audio".yellow());
