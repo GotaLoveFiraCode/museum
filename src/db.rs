@@ -71,8 +71,9 @@ pub fn update_songs(songs: &[Song], conn: &mut Connection) -> Result<()> {
     let tx = conn.transaction()?;
 
     {
-        let mut stmt =
-            tx.prepare("UPDATE song SET touches = (?1), skips = (?2), score = (?3) WHERE id = (?4)")?;
+        let mut stmt = tx.prepare(
+            "UPDATE song SET touches = (?1), skips = (?2), score = (?3) WHERE id = (?4)",
+        )?;
 
         for song in songs {
             // create identical temporary mutable song and calculate score.
@@ -193,7 +194,6 @@ pub fn retrieve_rnd_queue(conn: &Connection) -> Result<Vec<Song>> {
         }
     }
 
-    dbg!(&queue);
     Ok(queue)
 }
 
@@ -224,7 +224,8 @@ fn get_song_with_score(conn: &Connection, rows: u32) -> Result<Song> {
             skips: row.get(3)?,
             score: row.get(4)?,
         })
-    }).wrap_err("Failed to query score song.")
+    })
+    .wrap_err("Failed to query score song.")
 }
 
 /// Retrieve a random song.
@@ -237,7 +238,13 @@ fn get_random_song(conn: &Connection, rows: u32) -> Result<Song> {
 /// Choose between two songs based on score.
 fn compare_and_choose(song1: Song, song2: Song) -> Song {
     match (song1.score, song2.score) {
-        (Some(score1), Some(score2)) => if score1 > score2 { song1 } else { song2 },
+        (Some(score1), Some(score2)) => {
+            if score1 > score2 {
+                song1
+            } else {
+                song2
+            }
+        }
         (Some(_), None) => song2,
         (None, Some(_) | None) => song1,
     }
@@ -246,7 +253,13 @@ fn compare_and_choose(song1: Song, song2: Song) -> Song {
 /// Same as `compare_and_choose`, but favoures Some-score songs.
 fn compare_and_choose_some(song1: Song, song2: Song) -> Song {
     match (song1.score, song2.score) {
-        (Some(score1), Some(score2)) => if score1 > score2 { song1 } else { song2 },
+        (Some(score1), Some(score2)) => {
+            if score1 > score2 {
+                song1
+            } else {
+                song2
+            }
+        }
         (None, Some(_)) => song2,
         (Some(_) | None, None) => song1,
     }
@@ -274,5 +287,6 @@ fn retrieve_song_by_id(conn: &Connection, id: u32) -> Result<Song> {
             skips: row.get(3)?,
             score: row.get(4)?,
         })
-    }).wrap_err("Failed to query song.")
+    })
+    .wrap_err("Failed to query song.")
 }

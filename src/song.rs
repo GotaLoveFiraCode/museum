@@ -47,6 +47,8 @@ impl Song {
         if score < 0.0 {
             score = 0.0;
         }
+
+        log::trace!("Calculated `{}' score for `{}' song.", score, self.path);
         score
     }
 
@@ -111,6 +113,8 @@ impl Song {
     fn dampen(&self) -> f64 {
         // `+1` just in case.
         // `1.2` seems to be ideal.
-        f64::from(self.touches + 1).log(1.2)
+        let weight = f64::from(self.touches + 1).log(1.2);
+        log::trace!("Calculated logarithmic weight `{}'.", weight);
+        weight
     }
 }

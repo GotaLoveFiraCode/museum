@@ -2,6 +2,7 @@ use crate::db;
 use crate::song::Song;
 
 use color_eyre::eyre::{ensure, Result, WrapErr};
+use log::{debug, info, trace, warn};
 use owo_colors::OwoColorize;
 use rusqlite::Connection;
 
@@ -22,31 +23,31 @@ pub fn update_db(path: &Path, data_dir: &Path) -> Result<Connection> {
     let music_dir = gatekeeper(path)
         .wrap_err_with(|| format!("Failed condition for: argument music directory `{path:?}`!"))?;
 
-    println!(
-        ":: {} {}…",
+    info!(
+        "{} {}…",
         "Creating new database for".green(),
         path.display().blue()
     );
 
     if data_dir.join("museum/music.db3").exists() {
-        println!("==> {}…", "Deleting old database".purple());
+        warn!("{}…", "Deleting old database".purple());
         del_old_db(data_dir)?;
     }
 
-    println!(":: {}…", "Searching for music".yellow());
+    info!("{}…", "Searching for music".yellow());
     let files = find_music(&music_dir)
         .wrap_err_with(|| format!("Failed to find music files with `fd` from {music_dir:?}!"))?;
     // TODO: support multiple music file formats.
-    println!("==> {} flac files found!", files.len().green().bold());
+    info!("{} flac files found!", files.len().green().bold());
 
-    println!(
-        ":: {}… {}",
+    info!(
+        "{}… {}",
         "Starting to catalogue music in SQLite".yellow(),
         "This may take a while!".red().bold()
     );
 
     let db_conn = db::init(&files, data_dir).wrap_err("Failed to initialize SQLite database.")?;
-    println!("==> {}", "Music catalogue complete!".green());
+    trace!("{}", "Music catalogue complete!".green());
 
     Ok(db_conn)
 }
@@ -70,8 +71,8 @@ pub fn update_db(path: &Path, data_dir: &Path) -> Result<Connection> {
 /// ```
 fn gatekeeper(music_dir: &Path) -> Result<PathBuf> {
     if music_dir.is_relative() {
-        println!(
-            ":: {} `{}` {}…",
+        warn!(
+            "{} `{}` {}…",
             "Trying to convert".yellow(),
             music_dir.display().blue(),
             "into an absolute path".yellow(),
@@ -84,7 +85,7 @@ fn gatekeeper(music_dir: &Path) -> Result<PathBuf> {
                 music_dir, "Try using an absolute path."
             )
         })?;
-        println!("==> Converted into `{}`!", absolute_path.display().green());
+        debug!("==> Converted into `{}`!", absolute_path.display().green());
 
         ensure!(
             music_dir

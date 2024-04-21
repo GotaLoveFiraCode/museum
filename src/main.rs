@@ -1,5 +1,6 @@
 use color_eyre::eyre::{ensure, Result, WrapErr};
 use etcetera::BaseStrategy;
+use log::{info, warn};
 use owo_colors::OwoColorize;
 use rusqlite::Connection;
 
@@ -29,7 +30,7 @@ use real::command_handler::Cli;
 // all database functions et al are in `db`.
 
 fn main() -> Result<()> {
-    // lol
+    log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
     color_eyre::install().wrap_err("Failed to install error handling with `color-eyre`!")?;
 
     // Arguments.
@@ -48,13 +49,13 @@ fn main() -> Result<()> {
         conn = real::update_db(&path, &data_dir)
             .wrap_err_with(|| format!("Failed to update DB for {}!", path.display()))?;
     } else {
-        println!(":: {}…", "Checking for existing music database".yellow());
+        info!("{}…", "Checking for existing music database".yellow());
         ensure!(
             data_dir.join("museum/music.db3").exists(),
             "No previous database found! Run `museum --help`."
         );
-        println!(
-            "==> {} {}",
+        info!(
+            "{} {}",
             "Existing database found!".green(),
             "Use `-l` to list songs".italic()
         );
@@ -63,38 +64,37 @@ fn main() -> Result<()> {
     }
 
     if cli.list {
-        println!(":: {}…", "Displaying catalogued songs in database".yellow());
+        info!("{}…", "Displaying catalogued songs in database".yellow());
         // TODO: `retrieve_song_obj()`.
         let songs = db::retrieve_songs_vec(&conn)
             .wrap_err_with(|| format!("Failed to retrieve songs from `{conn:?}`."))?;
         for song in songs {
             // println!("==> Found \"{}\"", song.path.blue());
-            println!("==> Found \"{song:?}\"");
+            println!("{}", song.path.blue());
         }
     }
 
     if cli.test_audio {
-        println!(":: {}…", "Fetching songs from DB to test play".yellow());
+        info!("{}…", "Fetching 3 songs from DB to test play".yellow());
         let queue = db::retrieve_first_songs(&conn, 3)?;
-        println!(":: {}…", "Playing audio".yellow());
+        info!("{}…", "Playing audio".yellow());
         let new = playback::play_queue_with_cmds(&queue).wrap_err("Failed to play audio.")?;
-        println!("==> Didn’t update songs: {:?}", new.blue());
+        warn!("Didn’t update songs: {:?}", new.blue());
     }
 
     if cli.play_rnd {
-        println!(":: {}…", "Fetching random songs from DB to play".yellow());
+        info!("{}…", "Fetching random songs from DB to play".yellow());
         let queue = db::retrieve_rnd_queue(&conn)?;
-        println!("==> {}", "Successfully created queue!".green());
+        info!("{}", "Successfully created queue!".green());
 
-        println!(":: {}…", "Playing audio".yellow());
-        let updated_queue =
-            playback::play_queue_with_cmds(&queue).wrap_err("Failed to play audio!")?;
+        info!("{}…", "Playing audio".yellow());
+        let updated_queue = playback::play_queue_with_gui(&queue).unwrap();
 
-        println!(":: {}…", "Updating database".yellow());
+        info!("{}…", "Updating database".yellow());
         db::update_songs(&updated_queue, &mut conn)?;
-        println!("==> {}", "Successfully updated DB!".green());
+        info!("{}", "Successfully updated DB!".green());
     }
 
-    println!(":: {}", "THAT’S ALL, FOLKS!".green().bold());
+    info!("{}", "THAT’S ALL, FOLKS!".green().bold());
     Ok(())
 }

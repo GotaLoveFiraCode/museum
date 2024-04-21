@@ -1,7 +1,10 @@
 [package]
 name = "museum"
-version = "0.10.0"
+version = "0.11.0"
 edition = "2021"
+authors = ["Laurens Rosinski"]
+license = "GPL-3.0-or-later"
+description = "'Muse: Unleashing Music' is an algorithm and music player for intelligent music suggestions."
 
 [dependencies]
 # SQLite
@@ -10,15 +13,22 @@ rusqlite = { version = "0.31.0", features = ["bundled"] }
 etcetera = "0.8"
 # Error handling with colors.
 color-eyre = "0.6.3"
-# Colored output.
+# Colored output. Remove soon, in favour of logging.
 owo-colors = "3"
 # Commandline argument handler.
 clap = { version = "4.5.3", features = ["derive"] }
 # Playback
 rodio = "0.17.3"
-# Input
+# Input. Remove soon, in favour of `egui`.
 rustyline = "14"
-# Terminal
-crossterm = "0.27"
+# UI
+eframe = { features = ["default"] }
+# Logging
+log = "0.4"
+log4rs = "1.3"
 
+# ummmm
+tokio = {version = "1", features = ["full"] }
+
+# STD
 rand = "0.8.5"
