@@ -18,6 +18,20 @@ pub fn connect(data_dir: &Path) -> Result<Connection> {
 pub fn init(song: &[Song], data_dir: &Path) -> Result<Connection> {
     let mut conn = connect(data_dir).wrap_err("Connection refused when initializing DB.")?;
 
+    /*
+
+    // This should probably be in a different function…
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS moods (
+            id INTEGER PRIMARY KEY,
+            songs BLOB
+        )",
+        (),
+    ).wrap_err_with(|| format!("Invalid SQL command when CREATEing moods TABLE in `{conn:?}`."))?;
+
+    */
+
     conn.execute(
         "CREATE TABLE IF NOT EXISTS song (
             id      INTEGER PRIMARY KEY,

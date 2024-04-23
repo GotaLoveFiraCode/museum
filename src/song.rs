@@ -1,8 +1,27 @@
-// Add timestamp to touches/skips?
-// This way later add decay system,
-// so older touches and skips are removed?
-//
-// Would probably require an extra type just for interactions…
+/// A collection of songs that belong together.
+/// What songs belong together, etc., is algorithmically learned from the user.
+/// This can be though of, as the user’s _mood_.
+/// WIP
+struct Mood {
+    pub songs: Vec<Song>,
+    pub id: u8,
+}
+
+impl Mood {
+    /// Taking the previous songs, which existing `Mood` is this most
+    /// similar to? Considering that, which song from the found `Mood`s
+    /// has the highest score?
+    ///
+    /// This function essentially tries to predict, given the list of of
+    /// songs the user has already listened to (fully, so has not skipped),
+    /// which song they will enjoy next. It essentially gueses the user’s
+    /// mood. It takes previous songs, but also score, into account.
+    pub fn predict(prev_songs: Vec<Song>) -> color_eyre::Result<Song> {
+        todo!("Will work on slowly.");
+    }
+}
+
+/// How a song---and associated data---is stored in the database.
 #[derive(Debug, Default, Clone)]
 pub struct Song {
     /// SQL — limit on how many songs can be cataloged.
@@ -19,6 +38,17 @@ pub struct Song {
     pub skips: u32,
     /// Calculated score.
     pub score: Option<f64>,
+    // If a song is `loved`, it is very nearly always prefered
+    // when a choice is being made by the algo between songs.
+    // Simplified: it doubles the score.
+    // pub loved: Love
+}
+
+#[derive(Default, Debug, Clone)]
+enum Love {
+    #[default]
+    False = 1,
+    True = 2,
 }
 
 impl Song {
@@ -28,6 +58,7 @@ impl Song {
     /// Takes touches and skips into account.
     /// Dynamically changes weights based on touches.
     pub fn calc_score(&self) -> f64 {
+        // let love = self.loved as u8 as f64;
         let listens = f64::from(self.touches - self.skips);
         let skips = f64::from(self.skips);
         let mut score: f64;
@@ -36,19 +67,21 @@ impl Song {
         // first gets doubled (5 -> 10),
         // and then 10 -> 15,
         // and finally doubled again (15 -> 30).
-        if self.touches < 30 {
+        score = if self.touches < 30 {
             let (weight_listens, weight_skips) = self.weight();
-            score = weight_listens * listens - weight_skips * skips;
+            weight_listens * listens - weight_skips * skips
+            // (weight_listens * listens - weight_skips * skips) * love
         } else {
             // Skips may be larger than listens.
-            score = self.dampen() * listens - self.dampen() * skips;
-        }
+            // (self.dampen() * listens - self.dampen() * skips) * love
+            self.dampen() * listens - self.dampen() * skips
+        };
 
         if score < 0.0 {
             score = 0.0;
         }
 
-        log::trace!("Calculated `{}' score for `{}' song.", score, self.path);
+        log::debug!("Calculated `{}' score for `{}' song.", score, self.path);
         score
     }
 
@@ -75,9 +108,12 @@ impl Song {
     /// and the algo learns with stability.
     fn weight(&self) -> (f64, f64) {
         // Need fine-tuning.
+        // let love = self.loved as u8 as f64;
         let low = 0.5;
         let medium = 1.0;
+        // let high = 2.0 * love;
         let high = 2.0;
+        // log::trace!("Love of `{love}` was associated with this song.");
 
         // These could also use some fine-tuning.
         // Currently using this *with* a logarithmic function
