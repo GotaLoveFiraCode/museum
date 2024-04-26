@@ -14,23 +14,19 @@ Please help me.
 
 - [x] Actually play music…?
 	+ [x] Controls: pause skip etc. Ideally through independent commands or TUI
-		- [ ] Demonize.
-		- [ ] TUI?
 	+ [x] Play songs *from the database*, not just test songs…
 - [x] Add install instructions.
 - [ ] Better experience early on.
-- [ ] Categorize stuff by genre/mood (separate music dirs using symlinks? Or SQLite DBs?)
-- [x] Colors. Make stuff pretty.
-- [ ] Decay system, so old data becomes irrelevant.
+- [ ] Categorize stuff by moods (planning).
+- [ ] Use system time for rating songs (planning).
 - [ ] Different file types without having to change the code…
 - [ ] Figure out how to list `fd-find` as a dependency somehow. (Is this bullet point enough?)
 - [x] Get a better acronym.
-- [x] Modules. Use them. Not just one giant file. Please.
-- [ ] Store more information with each song (metadata).
-- [x] ~Use `anyhow` for proper error management.~
-	+ [x] *Use `color-eyre` for proper error handling.*
-- [x] Use clap crate for proper argument management.
 - [x] Use SQLite DBs instead of JSON.
+- [ ] Better GUI intergration.
+- [ ] Table for connections and use connection strength as coefficient.
+	+ [ ] Generated playlists based of specific songs (connections).
+- [ ] Add love feature (ability to love songs; planning).
 
 ## How do I use this?
 
