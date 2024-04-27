@@ -7,7 +7,7 @@ appenders:
       pattern: "[{h({d(%H:%M:%S)(utc)} — {l})}]: {m}{n}"
   rolling:
     kind: rolling_file
-    path: "log/last.log"
+    path: log/last.log
     append: true
     encoder:
       kind: pattern

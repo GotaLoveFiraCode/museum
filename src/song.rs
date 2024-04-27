@@ -36,16 +36,16 @@ pub struct Song {
     pub touches: u32,
     /// When the user skips the song.
     pub skips: u32,
+    /// If a song is `loved`, it is very nearly always prefered
+    /// when a choice is being made by the algo between songs.
+    /// Simplified: it doubles the score.
+    pub loved: Love,
     /// Calculated score.
     pub score: Option<f64>,
-    // If a song is `loved`, it is very nearly always prefered
-    // when a choice is being made by the algo between songs.
-    // Simplified: it doubles the score.
-    // pub loved: Love
 }
 
 #[derive(Default, Debug, Clone)]
-enum Love {
+pub enum Love {
     #[default]
     False = 1,
     True = 2,
@@ -58,8 +58,8 @@ impl Song {
     /// Takes touches and skips into account.
     /// Dynamically changes weights based on touches.
     pub fn calc_score(&self) -> f64 {
-        // let love = self.loved as u8 as f64;
-        let listens = f64::from(self.touches - self.skips);
+        let love = f64::from(self.loved.clone() as u8);
+        let listens = f64::from(self.touches - self.skips) * love;
         let skips = f64::from(self.skips);
         let mut score: f64;
 
@@ -70,10 +70,8 @@ impl Song {
         score = if self.touches < 30 {
             let (weight_listens, weight_skips) = self.weight();
             weight_listens * listens - weight_skips * skips
-            // (weight_listens * listens - weight_skips * skips) * love
         } else {
             // Skips may be larger than listens.
-            // (self.dampen() * listens - self.dampen() * skips) * love
             self.dampen() * listens - self.dampen() * skips
         };
 
@@ -81,7 +79,7 @@ impl Song {
             score = 0.0;
         }
 
-        log::debug!("Calculated `{}' score for `{}' song.", score, self.path);
+        log::trace!("Calculated `{}' score for `{}' song.", score, self.path);
         score
     }
 
@@ -108,12 +106,9 @@ impl Song {
     /// and the algo learns with stability.
     fn weight(&self) -> (f64, f64) {
         // Need fine-tuning.
-        // let love = self.loved as u8 as f64;
         let low = 0.5;
         let medium = 1.0;
-        // let high = 2.0 * love;
         let high = 2.0;
-        // log::trace!("Love of `{love}` was associated with this song.");
 
         // These could also use some fine-tuning.
         // Currently using this *with* a logarithmic function

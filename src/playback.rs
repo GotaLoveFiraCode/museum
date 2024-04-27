@@ -76,7 +76,7 @@ pub fn play_queue_with_gui(queue: &[Song]) -> Result<Vec<Song>> {
                 "[{ip}/{queue_len}] Now playing \"{}\"",
                 song.path
             ))) {
-                Ok(_) => {}
+                Ok(()) => {}
                 Err(_) => {
                     return;
                 }
@@ -96,6 +96,7 @@ pub fn play_queue_with_gui(queue: &[Song]) -> Result<Vec<Song>> {
                 path: song.path.clone(),
                 touches: song.touches + 1,
                 skips: song.skips,
+                loved: song.loved,
                 score: None,
             });
             // So it can be used by other threads (to add skips).
@@ -295,6 +296,7 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
                 path: song.path.clone(),
                 touches: song.touches + 1,
                 skips: song.skips,
+                loved: song.loved,
                 score: None,
             });
             // So it can be used by other thread (to add skips).

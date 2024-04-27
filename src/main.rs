@@ -1,6 +1,7 @@
 use color_eyre::eyre::{ensure, Result, WrapErr};
 use etcetera::BaseStrategy;
 use log::{info, warn};
+use log4rs::config::Deserializers;
 use owo_colors::OwoColorize;
 use rusqlite::Connection;
 
@@ -30,7 +31,7 @@ use real::command_handler::Cli;
 // all database functions et al are in `db`.
 
 fn main() -> Result<()> {
-    log4rs::init_file("./log4rs.yaml", Default::default()).unwrap();
+    log4rs::init_file("./log4rs.yaml", Deserializers::default()).unwrap();
     color_eyre::install().wrap_err("Failed to install error handling with `color-eyre`!")?;
 
     // Arguments.
