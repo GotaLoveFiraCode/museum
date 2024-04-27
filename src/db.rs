@@ -1,5 +1,6 @@
 use crate::song::Song;
 use color_eyre::eyre::{Result, WrapErr};
+use log::trace;
 use rand::Rng;
 use rusqlite::Connection;
 use std::path::Path;
@@ -78,7 +79,7 @@ pub fn update_songs(songs: &[Song], conn: &mut Connection) -> Result<()> {
 
     {
         let mut stmt = tx.prepare(
-            "UPDATE song SET touches = (?1), skips = (?2), score = (?3) WHERE id = (?4)",
+            "UPDATE song SET touches = (?1), skips = (?2), loved = (?3), score = (?4) WHERE id = (?5)",
         )?;
 
         for song in songs {
@@ -88,13 +89,20 @@ pub fn update_songs(songs: &[Song], conn: &mut Connection) -> Result<()> {
                 path: song.path.clone(),
                 touches: song.touches,
                 skips: song.skips,
+                loved: song.loved.clone(),
                 ..Default::default()
             };
             temp_song.score = Some(song.calc_score());
 
+
+            let loved = match &song.loved {
+                crate::song::Love::False => false,
+                crate::song::Love::True => true,
+            };
             stmt.execute((
                 temp_song.touches,
                 temp_song.skips,
+                loved,
                 temp_song.score,
                 temp_song.id,
             ))
@@ -182,28 +190,33 @@ pub fn retrieve_rnd_queue(conn: &Connection) -> Result<Vec<Song>> {
         .prepare("SELECT COUNT(id) FROM song")
         .wrap_err("Could not count database entries.")?;
 
-    // wtf
     let db_rows = stmt
         .query_map([], |row| -> Result<u32, rusqlite::Error> { row.get(0) })?
         .next()
         .unwrap()?;
+    trace!("{db_rows} entries in databas!");
 
     let mut queue: Vec<Song> = Vec::new();
-
-    // TODO: This is really shitty code, change later.
-    // Fills vec with songs (15 of them).
     while queue.len() < 15 {
         // Ensure that the first, 5th, 10th, and 15th songs are more likely to
         // be known (already have a `score` value).
         if queue.is_empty() || queue.len() == 4 || queue.len() == 9 || queue.len() == 14 {
-            let song1 = get_song_with_score(conn, db_rows)?;
-            let song2 = get_song_with_score(conn, db_rows)?;
-            let chosen_song = compare_and_choose_some(song1, song2);
+            let cmp_songs = [
+                get_song_with_score(conn, db_rows)?,
+                get_song_with_score(conn, db_rows)?,
+                get_song_with_score(conn, db_rows)?,
+                get_song_with_score(conn, db_rows)?
+            ];
+            let chosen_song = compare_and_choose_some(&cmp_songs);
             queue.push(chosen_song);
         } else {
-            let song1 = get_random_song(conn, db_rows)?;
-            let song2 = get_random_song(conn, db_rows)?;
-            let chosen_song = compare_and_choose(song1, song2);
+            let cmp_songs = [
+                get_random_song(conn, db_rows)?,
+                get_random_song(conn, db_rows)?,
+                get_random_song(conn, db_rows)?,
+                get_random_song(conn, db_rows)?
+            ];
+            let chosen_song = compare_and_choose(&cmp_songs);
             queue.push(chosen_song);
         }
     }
@@ -225,6 +238,7 @@ fn get_song_with_score(conn: &Connection, rows: u32) -> Result<Song> {
 
     // If no songs with `score` exist, just retrieve a random song.
     if count == 0 {
+        trace!("Getting random song, as no song with `score` exists.");
         return get_random_song(conn, rows);
     }
 
@@ -252,35 +266,31 @@ fn get_random_song(conn: &Connection, rows: u32) -> Result<Song> {
     retrieve_song_by_id(conn, song_id)
 }
 
-/// New songs are favoured.
-/// Choose between two songs based on score.
-fn compare_and_choose(song1: Song, song2: Song) -> Song {
-    match (song1.score, song2.score) {
-        (Some(score1), Some(score2)) => {
-            if score1 > score2 {
-                song1
-            } else {
-                song2
-            }
+/// New songs (None) are favoured.
+/// Choose one song from given songs based on score.
+fn compare_and_choose(songs: &[Song]) -> Song {
+    songs.iter().max_by(|a, b| {
+        match (a.score, b.score) {
+            (Some(a), Some(b)) if a > b => std::cmp::Ordering::Greater,
+            (Some(a), Some(b)) if a < b => std::cmp::Ordering::Less,
+            (Some(_), Some(_)) | (None, None) => std::cmp::Ordering::Equal,
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
         }
-        (Some(_), None) => song2,
-        (None, Some(_) | None) => song1,
-    }
+    }).cloned().unwrap()
 }
 
 /// Same as `compare_and_choose`, but favoures Some-score songs.
-fn compare_and_choose_some(song1: Song, song2: Song) -> Song {
-    match (song1.score, song2.score) {
-        (Some(score1), Some(score2)) => {
-            if score1 > score2 {
-                song1
-            } else {
-                song2
-            }
+fn compare_and_choose_some(songs: &[Song]) -> Song {
+    songs.iter().max_by(|a, b| {
+        match (a.score, b.score) {
+            (Some(a), Some(b)) if a > b => std::cmp::Ordering::Greater,
+            (Some(a), Some(b)) if a < b => std::cmp::Ordering::Less,
+            (Some(_), Some(_)) | (None, None) => std::cmp::Ordering::Equal,
+            (Some(_), None) => std::cmp::Ordering::Greater,
+            (None, Some(_)) => std::cmp::Ordering::Less,
         }
-        (None, Some(_)) => song2,
-        (Some(_) | None, None) => song1,
-    }
+    }).cloned().unwrap()
 }
 
 /// Generate random number between 1 and `rows` (inclusive).

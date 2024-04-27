@@ -1,3 +1,5 @@
+use log::trace;
+
 /// A collection of songs that belong together.
 /// What songs belong together, etc., is algorithmically learned from the user.
 /// This can be though of, as the user’s _mood_.
@@ -58,9 +60,9 @@ impl Song {
     /// Takes touches and skips into account.
     /// Dynamically changes weights based on touches.
     pub fn calc_score(&self) -> f64 {
-        let love = f64::from(self.loved.clone() as u8);
-        let listens = f64::from(self.touches - self.skips) * love;
-        let skips = f64::from(self.skips);
+        let love = self.loved.clone() as u32;
+        let listens = self.touches * love - self.skips;
+        let skips = self.skips;
         let mut score: f64;
 
         // 30 seems good, as the difference
@@ -69,17 +71,18 @@ impl Song {
         // and finally doubled again (15 -> 30).
         score = if self.touches < 30 {
             let (weight_listens, weight_skips) = self.weight();
-            weight_listens * listens - weight_skips * skips
+            // This will never produce a float, so only cast at the end.
+            f64::from(u32::from(weight_listens) * listens - u32::from(weight_skips) * skips)
         } else {
             // Skips may be larger than listens.
-            self.dampen() * listens - self.dampen() * skips
+            self.dampen() * f64::from(listens) - self.dampen() * f64::from(skips)
         };
 
         if score < 0.0 {
             score = 0.0;
         }
 
-        log::trace!("Calculated `{}' score for `{}' song.", score, self.path);
+        trace!("Calculated `{}' score for `{}' song.", score, self.path);
         score
     }
 
@@ -104,11 +107,11 @@ impl Song {
     /// Skips are more important than listens.
     /// this means skips still take an effect,
     /// and the algo learns with stability.
-    fn weight(&self) -> (f64, f64) {
+    fn weight(&self) -> (u8, u8) {
         // Need fine-tuning.
-        let low = 0.5;
-        let medium = 1.0;
-        let high = 2.0;
+        let low = 1;
+        let medium = 2;
+        let high = 4;
 
         // These could also use some fine-tuning.
         // Currently using this *with* a logarithmic function
@@ -145,7 +148,7 @@ impl Song {
         // `+1` just in case.
         // `1.2` seems to be ideal.
         let weight = f64::from(self.touches + 1).log(1.2);
-        log::trace!("Calculated logarithmic weight `{}'.", weight);
+        trace!("Calculated logarithmic weight `{}'.", weight);
         weight
     }
 }

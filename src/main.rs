@@ -84,16 +84,16 @@ fn main() -> Result<()> {
     }
 
     if cli.play_rnd {
-        info!("{}…", "Fetching random songs from DB to play".yellow());
+        info!("Fetching random songs from DB to play…");
         let queue = db::retrieve_rnd_queue(&conn)?;
-        info!("{}", "Successfully created queue!".green());
+        info!("Successfully created queue!");
 
-        info!("{}…", "Playing audio".yellow());
+        info!("Playing audio…");
         let updated_queue = playback::play_queue_with_gui(&queue).unwrap();
 
-        info!("{}…", "Updating database".yellow());
+        info!("Updating database…");
         db::update_songs(&updated_queue, &mut conn)?;
-        info!("{}", "Successfully updated DB!".green());
+        info!("Successfully updated DB!");
     }
 
     info!("{}", "THAT’S ALL, FOLKS!".green().bold());
