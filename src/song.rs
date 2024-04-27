@@ -1,3 +1,5 @@
+use log::trace;
+
 /// A collection of songs that belong together.
 /// What songs belong together, etc., is algorithmically learned from the user.
 /// This can be though of, as the user’s _mood_.
@@ -36,16 +38,16 @@ pub struct Song {
     pub touches: u32,
     /// When the user skips the song.
     pub skips: u32,
+    /// If a song is `loved`, it is very nearly always prefered
+    /// when a choice is being made by the algo between songs.
+    /// Simplified: it doubles the score.
+    pub loved: Love,
     /// Calculated score.
     pub score: Option<f64>,
-    // If a song is `loved`, it is very nearly always prefered
-    // when a choice is being made by the algo between songs.
-    // Simplified: it doubles the score.
-    // pub loved: Love
 }
 
 #[derive(Default, Debug, Clone)]
-enum Love {
+pub enum Love {
     #[default]
     False = 1,
     True = 2,
@@ -58,30 +60,37 @@ impl Song {
     /// Takes touches and skips into account.
     /// Dynamically changes weights based on touches.
     pub fn calc_score(&self) -> f64 {
-        // let love = self.loved as u8 as f64;
-        let listens = f64::from(self.touches - self.skips);
-        let skips = f64::from(self.skips);
+        let touches: u32 = if self.touches < 1 {
+            1
+        } else {
+            self.touches
+        };
+
+        let love = self.loved.clone() as u32;
+        let listens = touches * love - self.skips;
+        let skips = self.skips;
         let mut score: f64;
+        trace!("love of {love}; listens of {listens}; and skips of {skips}.");
 
         // 30 seems good, as the difference
         // first gets doubled (5 -> 10),
         // and then 10 -> 15,
         // and finally doubled again (15 -> 30).
-        score = if self.touches < 30 {
+        score = if touches < 30 {
             let (weight_listens, weight_skips) = self.weight();
-            weight_listens * listens - weight_skips * skips
-            // (weight_listens * listens - weight_skips * skips) * love
+            trace!("Weights of {weight_listens} for listens and {weight_skips} for skips.");
+            // This will never produce a float, so only cast at the end.
+            f64::from(u32::from(weight_listens) * listens - u32::from(weight_skips) * skips)
         } else {
             // Skips may be larger than listens.
-            // (self.dampen() * listens - self.dampen() * skips) * love
-            self.dampen() * listens - self.dampen() * skips
+            self.dampen() * f64::from(listens) - self.dampen() * f64::from(skips)
         };
 
         if score < 0.0 {
             score = 0.0;
         }
 
-        log::debug!("Calculated `{}' score for `{}' song.", score, self.path);
+        trace!("Calculated `{}' score for `{}' song.", score, self.path);
         score
     }
 
@@ -106,14 +115,11 @@ impl Song {
     /// Skips are more important than listens.
     /// this means skips still take an effect,
     /// and the algo learns with stability.
-    fn weight(&self) -> (f64, f64) {
+    fn weight(&self) -> (u8, u8) {
         // Need fine-tuning.
-        // let love = self.loved as u8 as f64;
-        let low = 0.5;
-        let medium = 1.0;
-        // let high = 2.0 * love;
-        let high = 2.0;
-        // log::trace!("Love of `{love}` was associated with this song.");
+        let low = 1;
+        let medium = 2;
+        let high = 4;
 
         // These could also use some fine-tuning.
         // Currently using this *with* a logarithmic function
@@ -150,7 +156,7 @@ impl Song {
         // `+1` just in case.
         // `1.2` seems to be ideal.
         let weight = f64::from(self.touches + 1).log(1.2);
-        log::trace!("Calculated logarithmic weight `{}'.", weight);
+        trace!("Calculated logarithmic weight `{}'.", weight);
         weight
     }
 }
