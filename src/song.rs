@@ -60,17 +60,25 @@ impl Song {
     /// Takes touches and skips into account.
     /// Dynamically changes weights based on touches.
     pub fn calc_score(&self) -> f64 {
+        let touches: u32 = if self.touches < 1 {
+            1
+        } else {
+            self.touches
+        };
+
         let love = self.loved.clone() as u32;
-        let listens = self.touches * love - self.skips;
+        let listens = touches * love - self.skips;
         let skips = self.skips;
         let mut score: f64;
+        trace!("love of {love}; listens of {listens}; and skips of {skips}.");
 
         // 30 seems good, as the difference
         // first gets doubled (5 -> 10),
         // and then 10 -> 15,
         // and finally doubled again (15 -> 30).
-        score = if self.touches < 30 {
+        score = if touches < 30 {
             let (weight_listens, weight_skips) = self.weight();
+            trace!("Weights of {weight_listens} for listens and {weight_skips} for skips.");
             // This will never produce a float, so only cast at the end.
             f64::from(u32::from(weight_listens) * listens - u32::from(weight_skips) * skips)
         } else {
