@@ -3,7 +3,7 @@ use eframe::egui;
 
 use crate::song::Song;
 use color_eyre::eyre::{bail, Result};
-use log::{error, info, warn};
+use log::{debug, error, info, trace, warn};
 use owo_colors::OwoColorize;
 use rodio::{Decoder, OutputStream, Sink};
 use rustyline::error::ReadlineError;
@@ -18,8 +18,10 @@ enum UserCommands {
     Pause,
     Skip,
     Stop,
+    Love,
     Unrecognized,
     Refresh,
+    Help,
     Error(color_eyre::eyre::Error),
     Msg(String),
 }
@@ -65,7 +67,7 @@ pub fn play_queue_with_gui(queue: &[Song]) -> Result<Vec<Song>> {
     let updated_info_music = Arc::clone(&updated_info);
 
     let music_handle = thread::spawn(move || {
-        sleep(std::time::Duration::from_millis(500));
+        sleep(std::time::Duration::from_secs(1));
 
         let mut ip: u8 = 0;
         let queue_len = music_queue.len();
@@ -76,13 +78,11 @@ pub fn play_queue_with_gui(queue: &[Song]) -> Result<Vec<Song>> {
                 "[{ip}/{queue_len}] Now playing \"{}\"",
                 song.path
             ))) {
-                Ok(_) => {}
+                Ok(()) => {}
                 Err(_) => {
                     return;
                 }
             };
-
-            info!("[{ip}/{queue_len}] Now playing \"{}\"", song.path);
 
             let file = BufReader::new(File::open(&song.path).unwrap());
             let source = Decoder::new(file).unwrap();
@@ -96,6 +96,7 @@ pub fn play_queue_with_gui(queue: &[Song]) -> Result<Vec<Song>> {
                 path: song.path.clone(),
                 touches: song.touches + 1,
                 skips: song.skips,
+                loved: song.loved,
                 score: None,
             });
             // So it can be used by other threads (to add skips).
@@ -103,6 +104,7 @@ pub fn play_queue_with_gui(queue: &[Song]) -> Result<Vec<Song>> {
 
             sink_music.append(source);
             // returns early when `skip_one` is called.
+            trace!("Waiting for song to finish (or user to skip)…");
             sink_music.sleep_until_end();
         }
 
@@ -148,24 +150,8 @@ pub fn play_queue_with_gui(queue: &[Song]) -> Result<Vec<Song>> {
 
     let updated_info = rx_songs.try_recv().unwrap();
 
-    // let updated_info = match rx_songs.try_recv() {
-    //     Ok(songs) => songs,
-    //     Err(err) => match err {
-    //         mpsc::TryRecvError::Empty => {
-    //             error!("No music to update!");
-    //             bail!("No music to update!");
-    //         }
-    //         mpsc::TryRecvError::Disconnected => {
-    //             warn!("Please quit the window (with the `quit` command), instead of just closing it! No music saved… I will fix this soon.");
-    //             bail!("Please quit the window (with the `quit` command), instead of just closing it! I will fix this soon.");
-    //         }
-    //     }
-    // };
-
-    // TODO: don't use unwrap!!!
-    log::debug!("Found: {:?}", updated_info.first().unwrap());
-    log::debug!("{updated_info:?}");
-    info!("Closed GUI.");
+    debug!("{updated_info:?}");
+    trace!("Closed GUI.");
 
     Ok(updated_info)
 }
@@ -181,6 +167,7 @@ impl eframe::App for Content {
                 .labelled_by(command_label.id);
 
             if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                trace!("Parsing input");
                 parse_line(Ok(self.input.clone()), &self.tx);
             }
 
@@ -193,17 +180,23 @@ impl eframe::App for Content {
             };
 
             match what_to_do {
-                UserCommands::Refresh => {}
+                UserCommands::Help => {
+                    info!("Available commands: help, pause, skip, exit, refresh");
+                }
+                UserCommands::Refresh => {
+                    trace!("Detected refresh.");
+                }
                 UserCommands::Pause => {
                     if self.sink.is_paused() {
+                        trace!("Playing song");
                         self.sink.play();
                     } else {
-                        info!("{}…", "Pausing song".yellow());
+                        trace!("Pausing song");
                         self.sink.pause();
                     }
                 }
                 UserCommands::Skip => {
-                    info!("{}…", "Skipping song".yellow());
+                    info!("Skipping song!");
                     let mut updated_info = self.new_song_info.lock().unwrap();
                     if let Some(last) = updated_info.last_mut() {
                         // Change the already added song to include the skip.
@@ -211,6 +204,23 @@ impl eframe::App for Content {
                     }
                     drop(updated_info);
                     self.sink.skip_one();
+                }
+
+                UserCommands::Love => {
+                    let mut updated_info = self.new_song_info.lock().unwrap();
+                    if let Some(last) = updated_info.last_mut() {
+                        match last.loved {
+                            crate::song::Love::False => {
+                                info!("Loving song!");
+                                last.loved = crate::song::Love::True;
+                            }
+                            crate::song::Love::True => {
+                                info!("Un-Loving song!");
+                                last.loved = crate::song::Love::False;
+                            }
+                        }
+                    }
+                    drop(updated_info);
                 }
 
                 UserCommands::Stop => {
@@ -221,21 +231,19 @@ impl eframe::App for Content {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     return;
                 }
-
                 UserCommands::Unrecognized => {
                     warn!(
                         "{} {}",
-                        "Unrecognized command.".red(),
-                        "Try 'pause', 'skip', or 'quit'".italic()
+                        "Unrecognized command.",
+                        "Try 'help'".italic()
                     );
                 }
                 UserCommands::Msg(msg) => {
                     info!("{msg}");
-                    ui.heading(msg);
                 }
                 UserCommands::Error(err) => {
                     // color_eyre::eyre::bail!("Error: {}", err);
-                    log::error!("{}", err.to_string());
+                    error!("{}", err.to_string());
                 }
             }
 
@@ -295,6 +303,7 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
                 path: song.path.clone(),
                 touches: song.touches + 1,
                 skips: song.skips,
+                loved: song.loved,
                 score: None,
             });
             // So it can be used by other thread (to add skips).
@@ -308,7 +317,7 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
         tx_music
             .send(UserCommands::Msg(format!(
                 "{} Please enter 'quit.'",
-                "Played all songs.".green()
+                "Played all songs!"
             )))
             .unwrap();
         // tx_music.send(UserCommands::Stop).unwrap();
@@ -322,6 +331,9 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
         parse_line(readline, &tx);
 
         match rx.recv().unwrap() {
+            UserCommands::Help => {
+                info!("Available commands: help, pause, skip, exit, refresh");
+            }
             UserCommands::Refresh => {
                 continue;
             }
@@ -329,12 +341,12 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
                 if sink.is_paused() {
                     sink.play();
                 } else {
-                    info!("{}…", "Pausing song".yellow());
+                    info!("{}…", "Pausing song");
                     sink.pause();
                 }
             }
             UserCommands::Skip => {
-                info!("{}…", "Skipping song".yellow());
+                info!("{}…", "Skipping song");
                 let mut updated_info = updated_info.lock().unwrap();
                 if let Some(last) = updated_info.last_mut() {
                     // Change the already added song to include the skip.
@@ -343,15 +355,18 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
                 drop(updated_info);
                 sink.skip_one();
             }
+            UserCommands::Love => {
+                warn!("This is a test, you cannot un-/love songs.");
+            }
             UserCommands::Stop => {
-                info!("{}…", "Stopping".red());
+                info!("{}…", "Stopping");
                 break;
             }
             UserCommands::Unrecognized => {
                 warn!(
                     "{} {}",
-                    "Unrecognized command.".red(),
-                    "Try 'pause', 'skip', or 'quit'".italic()
+                    "Unrecognized command.",
+                    "Try 'help'".italic()
                 );
             }
             UserCommands::Msg(msg) => {
@@ -375,11 +390,17 @@ pub fn play_queue_with_cmds(queue: &[Song]) -> Result<Vec<Song>> {
 fn parse_line(readline: Result<String, ReadlineError>, tx: &mpsc::Sender<UserCommands>) {
     match readline {
         Ok(cmd) => match cmd.as_str() {
+            "help" => {
+                tx.send(UserCommands::Help).unwrap();
+            }
             "pause" => {
                 tx.send(UserCommands::Pause).unwrap();
             }
             "skip" => {
                 tx.send(UserCommands::Skip).unwrap();
+            }
+            "love" | "loved" | "like" | "unlove" | "unloved" | "dislike" => {
+                tx.send(UserCommands::Love).unwrap();
             }
             "stop" | "quit" | "exit" => {
                 tx.send(UserCommands::Stop).unwrap();

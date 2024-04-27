@@ -1,6 +1,7 @@
 use color_eyre::eyre::{ensure, Result, WrapErr};
 use etcetera::BaseStrategy;
 use log::{info, warn};
+use log4rs::config::Deserializers;
 use owo_colors::OwoColorize;
 use rusqlite::Connection;
 
@@ -30,7 +31,7 @@ use real::command_handler::Cli;
 // all database functions et al are in `db`.
 
 fn main() -> Result<()> {
-    log4rs::init_file("./log4rs.yaml", Default::default()).unwrap();
+    log4rs::init_file("./log4rs.yaml", Deserializers::default()).unwrap();
     color_eyre::install().wrap_err("Failed to install error handling with `color-eyre`!")?;
 
     // Arguments.
@@ -83,16 +84,16 @@ fn main() -> Result<()> {
     }
 
     if cli.play_rnd {
-        info!("{}…", "Fetching random songs from DB to play".yellow());
+        info!("Fetching random songs from DB to play…");
         let queue = db::retrieve_rnd_queue(&conn)?;
-        info!("{}", "Successfully created queue!".green());
+        info!("Successfully created queue!");
 
-        info!("{}…", "Playing audio".yellow());
+        info!("Playing audio…");
         let updated_queue = playback::play_queue_with_gui(&queue).unwrap();
 
-        info!("{}…", "Updating database".yellow());
+        info!("Updating database…");
         db::update_songs(&updated_queue, &mut conn)?;
-        info!("{}", "Successfully updated DB!".green());
+        info!("Successfully updated DB!");
     }
 
     info!("{}", "THAT’S ALL, FOLKS!".green().bold());

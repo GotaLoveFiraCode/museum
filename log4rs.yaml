@@ -29,10 +29,7 @@ root:
     - stdout
 
 loggers:
-  app::backend::db:
-    level: info
-  app::rolling:
-    level: debug
+  museum:
+    level: trace
     appenders:
       - rolling
-    additive: false
