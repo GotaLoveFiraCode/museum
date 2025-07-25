@@ -40,40 +40,61 @@ Muse solves the problem of finding good background music from your local music l
 ### Prerequisites
 - **Rust 1.70+** for building
 - **MPD (Music Player Daemon)** running on localhost:6600
-- **mpc** command-line tool for MPD communication
+- **mpc** command-line tool for MPD communication (Todo: MPD crate integration)
 
 ### Installation
 
 ```bash
 # Clone repository
-git clone <repository-url>
+git clone <repository-url> # errr, umm, uhhh
 cd museum
-git checkout v2-rewrite
 
 # Build release version
 cargo build --release
+
+# Benchmark for funsies
+cargo bench
 
 # Binary will be at target/release/muse
 ```
 
 ### First Run
 
+You may want to set up a link to the binary like so:
 ```bash
-# 1. Update your music database
-./target/release/muse update /path/to/your/music/directory
+ln -s <path>/museum/target/release/muse ~/.local/bin/muse
+```
+Obviously this needs `~/.local/bin` to be in your `PATH`.
+
+```bash
+# 1. Initialize your music database
+./target/release/muse init-db /path/to/your/music/directory
 
 # 2. List your songs to verify
+# Song format is a little messed up right now, WIP
 ./target/release/muse list
 
 # 3. Start the behavior tracking daemon (IMPORTANT!)
+# Will automate this soon probably, WIP
 ./target/release/muse daemon start
 
 # 4. Start playing with the algorithm
+# I never use this, WIP
 ./target/release/muse play algorithm
 
 # 5. Generate queues with verbose output to see algorithm decisions
+# This is good in the beginning, I would start with this.
 ./target/release/muse stream "Song Name" -v
+
+# 6. Once you have a informed database, try smarter queue-generators
+./target/release/muse current "Song Name" -v
+# or
+./target/release/muse thread "Song Name" -v
 ```
+
+You can skip using the `muse skip` command or `mpc next`.
+
+Note that there is a bug in `mpc`, that causing `mpc next` to also pause the stream. Just run `mpc toggle && mpc toggle` to fix this.
 
 ### New in v2.1: Real-Time Behavior Tracking
 
@@ -100,19 +121,22 @@ muse current "Artist - Song"
 muse <COMMAND>
 
 Commands:
-  update   Update the music database from a directory
-  list     List all songs in the database
-  play     Play music using MPD [shuffle|algorithm]
-  current  Generate and play a "current" queue based on a song
-  thread   Generate and play a "thread" queue based on a song
-  stream   Generate and play a "stream" queue based on a song
-  next     Skip to next track with behavior tracking
-  skip     Skip current track with explicit skip tracking
-  love     Mark current track as loved
-  unlove   Remove loved status from current track
-  info     Show detailed information about the current song
-  daemon   Manage the behavior tracking daemon [start|stop|status]
-  help     Print this message or the help of the given subcommand(s)
+  init-db              Initialize database from music directory (full scan). WARNING: resets all data!
+  update               Update database with new files (incremental)
+  list                 List all songs in the database. WIP.
+  play                 Play music using MPD. Don’t use this, I don’t even remember implementing it...
+  thread               Generate and play a "thread" queue based on a song (little variation)
+  current              Generate and play a "current" queue based on a song (some variation)
+  stream               Generate and play a "stream" queue based on a song (much variation)
+  completion           Generate shell completions
+  completion-enhanced  Generate enhanced completion with song name completion (only bash and fish, WIP)
+  next                 Skip to next track with behavior tracking (not necessary when using daemon)
+  skip                 Skip current track with explicit skip tracking (not necessary when using daemon)
+  love                 Mark current track as loved (only use for _extreme_ boost to fix faulty behavior)
+  unlove               Remove loved status from current track
+  info                 Show detailed information about the current song (a little broken right now, WIP)
+  daemon               Manage the behavior tracking daemon (necessary)
+  help                 Print this message or the help of the given subcommand(s)
 ```
 
 ### New Features in v2.1
@@ -154,28 +178,35 @@ muse info
 # 🔗 Top Connections (shows related songs)
 ```
 
+I hate emojis.
+
 ### Database Management
 
 ```bash
-# Update database with new music
+# Initialize database (first time)
+muse init-db /path/to/music
+
+# Update database with new music (incremental)
 muse update /path/to/music
 
-# View all catalogued songs
+# View all catalogued songs (WIP)
 muse list
 ```
 
 ### Playback Modes
 
 ```bash
-# Play with intelligent algorithm (recommended)
+# Play with intelligent algorithm (not recommended)
 muse play algorithm
 
-# Play with simple shuffle
+# Play with simple shuffle (also not recommended)
 muse play shuffle
 
-# Use default (algorithm)
+# Use default (algorithm, also not recommended, duh)
 muse play
 ```
+
+Please use queue generation when possible.
 
 ### Queue Generation
 
@@ -189,7 +220,7 @@ muse current "Artist Name"
 # Thread queue (single-path, focused)
 muse thread "Song Title"
 
-# Stream queue (long, training-focused)
+# Stream queue (long, training-focused, recommended for new users)
 muse stream "Song Title"
 ```
 
@@ -205,12 +236,18 @@ Ensure MPD is configured and running:
 ```bash
 # Check MPD status
 systemctl status mpd
+# or equivalent for runit, s8, etc. — e.g.
+sv status mpd
+# you may also run mpd as a command ofc; it doesn’t need to be a service.
 
 # Test MPD connection
 mpc status
 
 # Start MPD if needed
 systemctl start mpd
+# or, for runit
+sv up mpd
+# etc.
 ```
 
 ## 🎯 How It Works
@@ -231,30 +268,32 @@ Songs are scored using a multi-factor system:
 - **Connections**: Multiplies base score by connection strength
 - **Loved Songs**: Get 2x score boost
 
-### Queue Types Explained
+This may be subject to change... and I’m always open to suggestions!
 
-**Current Queues**: Best for daily listening
+### Queue Types Explained (IMPORTANT)
+
+**Current Queues**: Best for daily listening once algo/db has enough data
 - Takes top 2 connections from starting song
 - Builds two separate paths
 - Interleaves them for variety
 - 9-27 songs depending on available connections
 
-**Thread Queues**: Best for focused listening
+**Thread Queues**: Best for focused listening once algo/db has a lot of data
 - Follows single strongest connection path
 - More coherent mood/genre
 - Same length as Current queues
 
-**Stream Queues**: Best for training the algorithm
+**Stream Queues**: Best for training the algorithm, i.e., best for newbies
 - Always exactly 30 songs
 - Introduces more randomness
 - Helps build new connections
 - Recommended for new users
 
-## 🎵 Best Practices
+## 🎵 Best Practices (also important)
 
 ### For New Users
 1. Start with `stream` queues to train the algorithm
-2. Use MPD clients like `ncmpcpp` for playback control
+2. Use MPD clients like `ncmpcpp` or `mpc` for playback control
 3. Let songs play completely when you enjoy them
 4. Skip songs you don't want to hear again
 
@@ -262,13 +301,13 @@ Songs are scored using a multi-factor system:
 1. Use `current` queues for daily background music
 2. Use `thread` queues when you want consistent mood
 3. Periodically use `stream` queues to discover forgotten music
-4. Mark favorite songs as "loved" in the database
+4. Mark songs that consistently don’t get suggested often enough or have been forgotten as “loved”
 
 ### Algorithm Training
-- **Skip early** if you don't like a song (helps algorithm learn)
-- **Play completely** songs you enjoy (builds positive connections)
+- **Skip early** if you don't like a song or it doesn’t fit the mood (helps algorithm learn)
+- **Play completely** songs you enjoy or fit the mood very well (builds positive connections)
 - **Use variety** in your queue generation starting points
-- **Be patient** - the algorithm improves with more data
+- **Be patient**; the algorithm improves with more data
 
 ## 🔍 Examples
 
@@ -276,28 +315,38 @@ Songs are scored using a multi-factor system:
 
 ```bash
 # Morning: Start with a mood-setting song
-muse current "Debussy - Clair de Lune"
+muse current "HEALTH - Zoothorns"
+muse current "Bong-Ra - Dystopic"
 
 # Afternoon: Continue with more energetic music
-muse thread "The Beatles - Come Together"
+muse thread "~/Music/experimental/weir_bips_and_bops_with_BASS.flac" # path
+muse thread "Q-Tip - Feelin'" # track
+muse thread "J Dilla - Donuts" # album
+muse thread "Run The Jewels" # artist
 
 # Evening: Let the algorithm surprise you
-muse stream "Miles Davis - Kind of Blue"
+muse stream "Muddy Waters - Long Distance Call"
+muse stream "Verdi La Traviata" # fuzzy matching works as well
 
-# Check what's in your database
-muse list | grep "Beatles"
+# Check what’s in your database
+muse list | grep "John Chowning" | wc -l # how much music by chowning
+muse stream $(muse list | fzf -q "Zeal & Ardor") # interactive selection
+muse list | rg -P "^(?!.*Ambient).*Aphex Twin.*$" # Aphex but not the ambient works
 ```
 
 ### Library Management
 
 ```bash
-# Add new album
+# Add new album (incremental update)
 muse update /home/user/Music/NewAlbum
 
-# Update entire library
+# Update entire library (incremental)
 muse update /home/user/Music
 
-# See recent additions
+# Full re-scan of library (if needed); WARNING: resets all data in DB
+muse init-db /home/user/Music
+
+# See recent additions (WIP)
 muse list | tail -20
 ```
 
@@ -318,7 +367,7 @@ muse list | tail -20
 - **Storage**: ~1MB per 1000 songs in database
 - **CPU**: Minimal when not generating queues
 
-### Performance Benchmarks
+### Performance Benchmarks (WIP)
 
 Muse includes comprehensive performance benchmarks showing excellent efficiency:
 
@@ -330,20 +379,14 @@ cargo bench
 ./bench.sh
 ```
 
-**Key Performance Metrics** (measured on modern hardware):
+**Key Performance Metrics** (measured on 32GB LPDDR6 RAM, AMD Ryzen 7 6800U (16@4.77GHz), and Samsung SSD 980 PRO with f2fs, all on Void Linux @ 6.15.7\_1):
 - **Song Scoring**: ~25ns per song (40M songs/second)
 - **Batch Processing**: ~25μs for 1000 songs  
 - **Database Queries**: <5ms for typical searches
 - **Queue Generation**: <100ms for 30-song queues
 - **Connection Weight**: ~5ns per calculation
 
-### Optimization Features
-- SQLite with proper indexing
-- Lazy loading of song data
-- Efficient connection queries
-- Release builds with LTO
-- Functional algorithms with zero-cost abstractions
-- SIMD-optimized batch processing
+So it’s pretty fast.
 
 ## 🤝 Contributing
 
@@ -354,9 +397,8 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed development information.
 ```bash
 git clone <repository>
 cd museum
-git checkout v2-rewrite
-cargo check
-cargo test  # (when tests are added)
+cargo clippy
+cargo test
 ```
 
 ## 🔧 Troubleshooting
@@ -366,10 +408,12 @@ cargo test  # (when tests are added)
 # Check MPD status
 systemctl status mpd    # System-wide
 systemctl --user status mpd  # User-level
+# or equivalent for runit, s8, etc.
 
 # Start MPD if not running
 systemctl start mpd     # System-wide
 systemctl --user start mpd   # User-level
+# or equivalent for runit, s8, etc.
 
 # Check MPD is accessible
 mpc status
@@ -381,7 +425,7 @@ mpc status
 find ~/.local/share/ -name "music.db" 2>/dev/null
 
 # Reinitialize if corrupted
-muse update /path/to/music --remove-missing
+muse init-db /path/to/music
 ```
 
 ### Path Translation Errors
